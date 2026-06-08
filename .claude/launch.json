@@ -1,0 +1,27 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "react-design-system",
+      "runtimeExecutable": "./node_modules/.bin/next",
+      "runtimeArgs": ["dev", "--port", "3200"],
+      "cwd": "apps/react-app",
+      "port": 3200
+    },
+    {
+      "name": "nuxt-ui-playground",
+      "runtimeExecutable": "./node_modules/.bin/nuxt",
+      "runtimeArgs": ["dev", "--port", "3100"],
+      "cwd": "packages/nuxt-ui/playground",
+      "port": 3100
+    },
+    {
+      "name": "nuxt-design-system",
+      "runtimeExecutable": "./node_modules/.bin/nuxt",
+      "runtimeArgs": ["dev"],
+      "cwd": "apps/nuxt-app",
+      "port": 3300,
+      "env": { "TMPDIR": "/tmp", "PORT": "3300", "NUXT_PORT": "3300" }
+    }
+  ]
+}
