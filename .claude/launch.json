@@ -19,7 +19,7 @@
       "name": "nuxt-design-system",
       "runtimeExecutable": "./node_modules/.bin/nuxt",
       "runtimeArgs": ["dev"],
-      "cwd": "apps/nuxt-app",
+      "cwd": "apps/app",
       "port": 3300,
       "env": { "TMPDIR": "/tmp", "PORT": "3300", "NUXT_PORT": "3300" }
     }

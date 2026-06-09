@@ -5,13 +5,17 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
   css: ['~/assets/css/main.css'],
+
   vite: {
     plugins: [tailwindcss()],
   },
+
   // better-sqlite3 is a native module — keep it external to the Nitro bundle.
   nitro: {
     externals: {
       external: ['better-sqlite3'],
     },
   },
+
+  modules: ['@nuxtjs/color-mode'],
 })

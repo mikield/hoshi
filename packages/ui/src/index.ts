@@ -21,6 +21,8 @@ export { default as AlertDialogDescription } from "./components/AlertDialogDescr
 export { default as AlertDialogAction } from "./components/AlertDialogAction.vue"
 export { default as AlertDialogCancel } from "./components/AlertDialogCancel.vue"
 
+export { default as AnimatedBg } from "./components/AnimatedBg.vue"
+export type { ArcCfg } from "./components/AnimatedBg.vue"
 export { default as AnimatedThinkingText } from "./components/AnimatedThinkingText.vue"
 
 export { default as Avatar } from "./components/Avatar.vue"
@@ -164,9 +166,15 @@ export { default as InfoBanner } from "./components/InfoBanner.vue"
 export * from "./components/info-banner"
 export { default as InlineMeta } from "./components/InlineMeta.vue"
 
+export { default as HoshiLoader } from "./components/HoshiLoader.vue"
+
 export { default as Input } from "./components/Input.vue"
 
 export { default as Kbd } from "./components/Kbd.vue"
+
+export { default as OtpInput } from "./components/OtpInput.vue"
+
+export { default as PhoneInput } from "./components/PhoneInput.vue"
 export { default as KbdGroup } from "./components/KbdGroup.vue"
 
 export { default as Label } from "./components/Label.vue"
@@ -257,6 +265,12 @@ export { default as TooltipTrigger } from "./components/TooltipTrigger.vue"
 export { default as TooltipContent } from "./components/TooltipContent.vue"
 
 export { default as UserAvatar } from "./components/UserAvatar.vue"
+
+export {default as Divider} from "./components/Divider.vue"
+export {default as Logo} from './components/Logo.vue'
+
+export { default as WallpaperBackground } from "./components/WallpaperBackground.vue"
+export * from "./components/wallpapers"
 
 // Lib
 export { cn } from "./lib/utils"
