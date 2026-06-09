@@ -1,8 +1,41 @@
 @import 'tailwindcss';
+@import 'tw-animate-css';
 
 @source "../../../../../packages/nuxt-ui/src/**/*.{ts,vue}";
 
 @custom-variant dark (&:is(.dark *));
+
+/* Roobert variable fonts — port of Next.js `localFont` setup. */
+@font-face {
+  font-family: 'Roobert';
+  src: url('/fonts/roobert/RoobertUprightsVF.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  font-feature-settings: 'ss10' on, 'ss09' on, 'ss03' on, 'ss04' on, 'ss14' on;
+}
+@font-face {
+  font-family: 'Roobert';
+  src: url('/fonts/roobert/RoobertItalicsVF.woff2') format('woff2');
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+  font-feature-settings: 'ss10' on, 'ss09' on, 'ss03' on, 'ss04' on, 'ss14' on;
+}
+@font-face {
+  font-family: 'Roobert Mono';
+  src: url('/fonts/roobert/RoobertMonoUprightsVF.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Roobert Mono';
+  src: url('/fonts/roobert/RoobertMonoItalicsVF.woff2') format('woff2');
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+}
 
 :root {
   --background: oklch(1 0 0);
@@ -66,6 +99,8 @@
 }
 
 @theme inline {
+  --font-sans: 'Roobert', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Roobert Mono', ui-monospace, monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -193,4 +228,6 @@
 body {
   background: var(--background);
   color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
 }

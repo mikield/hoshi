@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { Toaster } from "@kortix/nuxt-ui"
+
 useHead({
   htmlAttrs: {
     class: "",
@@ -17,5 +19,6 @@ onMounted(() => {
   <div>
     <NuxtRouteAnnouncer />
     <NuxtPage />
+    <Toaster />
   </div>
 </template>

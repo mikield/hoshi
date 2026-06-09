@@ -8,4 +8,10 @@ export default defineNuxtConfig({
   vite: {
     plugins: [tailwindcss()],
   },
+  // better-sqlite3 is a native module — keep it external to the Nitro bundle.
+  nitro: {
+    externals: {
+      external: ['better-sqlite3'],
+    },
+  },
 })
