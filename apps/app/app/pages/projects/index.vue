@@ -10,43 +10,24 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  ConfirmDialog,
 } from '@hoshi/ui'
-import { Search, Plus, MoreHorizontal, Trash2, FolderPlus } from 'lucide-vue-next'
+import { Search, Plus, MoreHorizontal, Pencil, Trash2, FolderPlus } from 'lucide-vue-next'
+import { toast } from 'vue-sonner'
+import { useProjects, shortRelative, sqliteTimestamp, type Project } from '~/composables/useProjects'
 
 definePageMeta({ middleware: 'auth' })
 
 const user = useAuthUser()
+const { projects, loading, loadError, now, load, create, rename, remove } = useProjects()
 
-interface Project {
-  id: string
-  name: string
-  updatedAt: number
-}
-
-// Stable reference time shared from server to client (avoids hydration mismatch).
-const now = useState('projects:now', () => Date.now())
-
-const projects = ref<Project[]>([
-  { id: 'p1', name: 'Retry logic refactor', updatedAt: now.value - 1000 * 60 * 12 },
-  { id: 'p2', name: 'Marketing site redesign', updatedAt: now.value - 1000 * 60 * 60 * 4 },
-  { id: 'p3', name: 'Onboarding flow audit', updatedAt: now.value - 1000 * 60 * 60 * 24 * 2 },
-  { id: 'p4', name: 'Q3 release notes', updatedAt: now.value - 1000 * 60 * 60 * 24 * 9 },
-])
 const query = ref('')
 const createOpen = ref(false)
+const projectToRename = ref<Project | null>(null)
+const renameInput = ref('')
+const projectToDelete = ref<Project | null>(null)
 
-function relativeTime(ts: number) {
-  const minutes = Math.floor((now.value - ts) / 60000)
-  if (minutes < 1) return 'just now'
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  if (days < 30) return `${days}d ago`
-  const months = Math.floor(days / 30)
-  if (months < 12) return `${months}mo ago`
-  return `${Math.floor(months / 12)}y ago`
-}
+onMounted(() => load())
 
 const filtered = computed(() =>
   projects.value.filter((p) => p.name.toLowerCase().includes(query.value.trim().toLowerCase())),
@@ -54,18 +35,53 @@ const filtered = computed(() =>
 
 const noMatchTitle = computed(() => `No matches for "${query.value}"`)
 
+function updatedLabel(project: Project): string {
+  const relative = shortRelative(sqliteTimestamp(project.updated_at), now.value)
+  return relative ? `Updated ${relative} ago` : 'Just created'
+}
+
 function openProject(id: string) {
   navigateTo(`/projects/${id}`)
 }
 
-function createProject(name: string) {
-  const project: Project = { id: `p${Date.now()}`, name, updatedAt: Date.now() }
-  projects.value = [project, ...projects.value]
-  navigateTo(`/projects/${project.id}`)
+async function createProject(name: string) {
+  try {
+    const project = await create(name)
+    await navigateTo(`/projects/${project.id}`)
+  } catch {
+    // Close the modal so its pending state doesn't stick after a failure.
+    createOpen.value = false
+    toast.error('Failed to create project')
+  }
 }
 
-function archiveProject(id: string) {
-  projects.value = projects.value.filter((p) => p.id !== id)
+function startRename(project: Project) {
+  projectToRename.value = project
+  renameInput.value = project.name
+}
+
+async function confirmRename() {
+  const project = projectToRename.value
+  const name = renameInput.value.trim()
+  projectToRename.value = null
+  if (!project || !name || name === project.name) return
+  try {
+    await rename(project.id, name)
+  } catch {
+    toast.error('Failed to rename project')
+  }
+}
+
+async function confirmDelete() {
+  const project = projectToDelete.value
+  projectToDelete.value = null
+  if (!project) return
+  try {
+    await remove(project.id)
+    toast.success('Project deleted')
+  } catch {
+    toast.error('Failed to delete project')
+  }
 }
 </script>
 
@@ -91,8 +107,17 @@ function archiveProject(id: string) {
           </div>
         </div>
 
+        <div v-if="loading && projects.length === 0" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div v-for="i in 3" :key="i" class="h-24 animate-pulse rounded-lg border border-border/40 bg-muted/30" />
+        </div>
+
+        <EmptyState v-else-if="loadError" :icon="FolderPlus" title="Couldn't load projects">
+          <template #description>Something went wrong while fetching your projects.</template>
+          <template #action><Button variant="outline" @click="load(true)">Retry</Button></template>
+        </EmptyState>
+
         <EmptyState
-          v-if="projects.length === 0"
+          v-else-if="projects.length === 0"
           :icon="FolderPlus"
           title="No projects yet"
         >
@@ -123,7 +148,7 @@ function archiveProject(id: string) {
                 <EntityAvatar :label="project.name" size="lg" />
                 <div class="min-w-0 flex-1">
                   <h3 class="truncate text-sm font-semibold leading-tight text-foreground">{{ project.name }}</h3>
-                  <p class="mt-1 truncate text-xs text-muted-foreground">Updated {{ relativeTime(project.updatedAt) }}</p>
+                  <p class="mt-1 truncate text-xs text-muted-foreground">{{ updatedLabel(project) }}</p>
                 </div>
               </div>
             </button>
@@ -142,10 +167,14 @@ function archiveProject(id: string) {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" class="w-44">
                   <DropdownMenuItem @select="openProject(project.id)">Open project</DropdownMenuItem>
+                  <DropdownMenuItem class="gap-2" @select="startRename(project)">
+                    <Pencil class="h-3.5 w-3.5" />
+                    Rename…
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem class="gap-2 text-muted-foreground focus:text-foreground" @select="archiveProject(project.id)">
+                  <DropdownMenuItem class="gap-2 text-muted-foreground focus:text-foreground" @select="projectToDelete = project">
                     <Trash2 class="h-3.5 w-3.5" />
-                    Archive
+                    Delete
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -154,6 +183,34 @@ function archiveProject(id: string) {
         </div>
       </div>
     </main>
+
     <ProjectCreateModal v-model:open="createOpen" @create="createProject" />
+
+    <!-- Rename -->
+    <ConfirmDialog
+      :open="projectToRename !== null"
+      title="Rename project"
+      confirm-label="Rename"
+      @confirm="confirmRename"
+      @update:open="(open: boolean) => { if (!open) projectToRename = null }"
+    >
+      <template #description>
+        <Input v-model="renameInput" placeholder="Project name" maxlength="120" autofocus class="mt-2" @keydown.enter.prevent="confirmRename" />
+      </template>
+    </ConfirmDialog>
+
+    <!-- Delete -->
+    <ConfirmDialog
+      :open="projectToDelete !== null"
+      title="Delete project?"
+      confirm-label="Delete"
+      confirm-variant="destructive"
+      @confirm="confirmDelete"
+      @update:open="(open: boolean) => { if (!open) projectToDelete = null }"
+    >
+      <template #description>
+        This removes “{{ projectToDelete?.name }}” and its session links. Sessions on the OpenCode server are kept.
+      </template>
+    </ConfirmDialog>
   </div>
 </template>

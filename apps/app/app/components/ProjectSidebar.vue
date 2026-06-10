@@ -15,6 +15,7 @@ import {
   ListTree,
   Loader2,
   MoreHorizontal,
+  SlidersHorizontal,
   SquarePen,
   Trash2,
 } from 'lucide-vue-next'
@@ -32,9 +33,10 @@ const props = defineProps<{
 const emit = defineEmits<{ select: [id: string]; create: []; delete: [id: string] }>()
 
 const user = useAuthUser()
+const { show: showCustomize } = useCustomize()
+const { now } = useProjects()
 const collapsed = useState('sidebar:collapsed', () => false)
 const sessionsOpen = ref(true)
-const now = useState('projects:now', () => Date.now())
 const hoveredId = ref<string | null>(null)
 const menuId = ref<string | null>(null)
 
@@ -120,6 +122,17 @@ function onKeydown(e: KeyboardEvent) {
             @click="collapsed = false"
           >
             <ListTree class="h-4 w-4" />
+          </button>
+        </div>
+        <!-- Customize pinned to the bottom of the rail -->
+        <div class="mt-auto w-full space-y-0.5">
+          <button
+            type="button"
+            class="flex w-full cursor-pointer items-center justify-center rounded-lg py-2 text-sidebar-foreground transition-colors duration-150 ease-out hover:bg-sidebar-accent"
+            title="Customize"
+            @click="showCustomize()"
+          >
+            <SlidersHorizontal class="h-4 w-4" />
           </button>
         </div>
       </div>
@@ -220,6 +233,16 @@ function onKeydown(e: KeyboardEvent) {
             </div>
           </div>
         </div>
+
+        <!-- Customize — pinned just above the footer -->
+        <button
+          type="button"
+          class="mt-auto flex h-8 w-full cursor-pointer items-center gap-2 overflow-hidden rounded-lg p-2 text-left text-sm font-normal text-sidebar-foreground outline-hidden transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground [&>svg]:size-4 [&>svg]:shrink-0"
+          @click="showCustomize()"
+        >
+          <SlidersHorizontal />
+          <span>Customize</span>
+        </button>
       </div>
     </div>
 

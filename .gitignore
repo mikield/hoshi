@@ -2,3 +2,4 @@ node_modules
 .idea
 .output
 .nuxt
+.DS_Store

@@ -9,14 +9,16 @@ import {
   cn,
 } from '@hoshi/ui'
 import { ArrowUpRight, Check, ChevronsUpDown, Plus } from 'lucide-vue-next'
-import { useProjects, shortRelative } from '~/composables/useProjects'
+import { useProjects, shortRelative, sqliteTimestamp } from '~/composables/useProjects'
 
 const props = defineProps<{
   projectId: string
   collapsed?: boolean
 }>()
 
-const { projects, now } = useProjects()
+const { projects, now, load } = useProjects()
+
+onMounted(() => load())
 
 const activeProject = computed(() => projects.value.find((p) => p.id === props.projectId))
 const label = computed(() => activeProject.value?.name ?? 'Projects')
@@ -63,7 +65,7 @@ function switchProject(id: string) {
             <EntityAvatar :label="project.name" size="xs" />
             <div class="grid min-w-0 flex-1 leading-tight">
               <span class="truncate text-sm font-medium">{{ project.name }}</span>
-              <span class="truncate text-xs text-muted-foreground/60">{{ shortRelative(project.updatedAt, now) }} ago</span>
+              <span class="truncate text-xs text-muted-foreground/60">{{ shortRelative(sqliteTimestamp(project.updated_at), now) }} ago</span>
             </div>
             <Check v-if="project.id === projectId" class="size-3.5 shrink-0 text-foreground/70" />
           </DropdownMenuItem>

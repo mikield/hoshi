@@ -13,6 +13,8 @@ useHead({
   <div>
     <NuxtRouteAnnouncer />
     <NuxtPage />
+    <UserSettingsModal />
+    <CustomizeOverlay />
     <Toaster />
   </div>
 </template>

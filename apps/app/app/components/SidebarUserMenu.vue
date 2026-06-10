@@ -18,6 +18,7 @@ const props = defineProps<{
 }>()
 
 const displayName = computed(() => props.user.name || props.user.email.split('@')[0])
+const { show: showSettings } = useSettingsModal()
 </script>
 
 <template>
@@ -55,7 +56,7 @@ const displayName = computed(() => props.user.name || props.user.email.split('@'
           <Home class="size-3.5" />
           <span class="flex-1 truncate text-sm font-medium leading-tight">Home</span>
         </DropdownMenuItem>
-        <DropdownMenuItem class="flex h-8 cursor-pointer items-center gap-2.5 rounded-lg px-2 py-0 text-left [&_svg]:!text-muted-foreground/70">
+        <DropdownMenuItem class="flex h-8 cursor-pointer items-center gap-2.5 rounded-lg px-2 py-0 text-left [&_svg]:!text-muted-foreground/70" @select="showSettings">
           <Settings class="size-3.5" />
           <span class="flex-1 truncate text-sm font-medium leading-tight">Settings</span>
         </DropdownMenuItem>

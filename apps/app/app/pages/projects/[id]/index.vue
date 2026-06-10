@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { EntityAvatar, cn } from '@hoshi/ui'
 import { AlertCircle, ArrowUp, Building2, Globe, Search, Presentation } from 'lucide-vue-next'
+import { toast } from 'vue-sonner'
 import {
   createOpencodeClient,
   unwrap,
@@ -10,13 +11,18 @@ import {
   type OpencodeClient,
   type SessionInfo,
 } from '~/composables/useOpencode'
-import { useProjects } from '~/composables/useProjects'
+import {
+  useProjects,
+  fetchProjectSessionIds,
+  registerProjectSession,
+  unregisterProjectSession,
+} from '~/composables/useProjects'
 
 definePageMeta({ middleware: 'auth' })
 
 const route = useRoute()
 const projectId = computed(() => route.params.id as string)
-const { projects } = useProjects()
+const { projects, load: loadProjects } = useProjects()
 const projectName = computed(() => projects.value.find((p) => p.id === projectId.value)?.name ?? 'Your project')
 
 const STARTERS = [
@@ -34,10 +40,14 @@ const sessions = ref<SessionInfo[]>([])
 const loadingSessions = ref(true)
 
 onMounted(async () => {
+  void loadProjects()
   client = await createOpencodeClient()
   try {
-    const list = await client.session.list()
-    sessions.value = unwrap<SessionInfo[]>(list)
+    const [list, projectIds] = await Promise.all([
+      client.session.list(),
+      fetchProjectSessionIds(projectId.value),
+    ])
+    sessions.value = unwrap<SessionInfo[]>(list).filter((s) => projectIds.has(s.id))
   } catch {
     error.value = OPENCODE_CONNECT_ERROR
   } finally {
@@ -54,10 +64,13 @@ async function startSession(prompt?: string) {
     if (!client) client = await createOpencodeClient()
     const res = await client.session.create({ body: { title: text || 'New session' } })
     const created = unwrap<{ id: string }>(res)
+    await registerProjectSession(projectId.value, created.id)
     if (text) {
+      // Fire-and-forget so navigation isn't blocked, but surface failures —
+      // otherwise the user lands in a session that silently never answers.
       client.session
         .prompt({ path: { id: created.id }, body: { model: OPENCODE_MODEL, parts: [{ type: 'text', text }] } })
-        .catch(() => {})
+        .catch(() => toast.error('Failed to send the first message — try again in the session.'))
     }
     await navigateTo(`/projects/${projectId.value}/sessions/${created.id}`)
   } catch {
@@ -69,10 +82,16 @@ async function startSession(prompt?: string) {
 async function deleteSession(id: string) {
   try {
     await client!.session.delete({ path: { id } })
-    sessions.value = sessions.value.filter((s) => s.id !== id)
   } catch {
     error.value = OPENCODE_CONNECT_ERROR
+    return
   }
+  try {
+    await unregisterProjectSession(projectId.value, id)
+  } catch {
+    toast.error('Failed to unlink the session from this project')
+  }
+  sessions.value = sessions.value.filter((s) => s.id !== id)
 }
 
 function applySuggestion(label: string) {
