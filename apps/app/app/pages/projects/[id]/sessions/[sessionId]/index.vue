@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
-import { Button, EmptyState, EntityAvatar, ChatBubble, ChatInputShell, Textarea } from '@hoshi/ui'
-import { Send, Bot, AlertCircle, Loader2, ListTree } from 'lucide-vue-next'
-import type { PanelView } from '~/components/WorkspaceSidePanel.vue'
+import {ref, computed, watch, nextTick, onBeforeUnmount} from 'vue'
+import {Logo, cn, AnimatedThinkingText} from '@hoshi/ui'
+import {AlertCircle as AlertCircleIcon} from 'lucide-vue-next'
+import type {PanelView} from '~/components/WorkspaceSidePanel.vue'
 import {
   createOpencodeClient,
   unwrap,
@@ -14,7 +14,7 @@ import {
   type ChatMessage,
 } from '~/composables/useOpencode'
 
-definePageMeta({ middleware: 'auth' })
+definePageMeta({middleware: 'auth'})
 
 const route = useRoute()
 const projectId = computed(() => route.params.id as string)
@@ -24,18 +24,32 @@ let client: OpencodeClient | null = null
 const connectError = ref<string | null>(null)
 const sessions = ref<SessionInfo[]>([])
 const loadingSessions = ref(true)
+const creating = ref(false)
 const messages = ref<ChatMessage[]>([])
 const input = ref('')
 const sending = ref(false)
 const scrollRef = ref<HTMLDivElement | null>(null)
 
-const panelOpen = ref(true)
+const panelOpen = ref(false)
 const panelView = ref<PanelView>('actions')
-const splitPct = ref(52)
+const splitPct = ref(50)
 const dragRef = ref<HTMLDivElement | null>(null)
 const dragging = ref(false)
 
-const activeSession = computed(() => sessions.value.find((s) => s.id === sessionId.value))
+/** Group the flat message list into turns: one user message + the assistant
+ *  messages that follow it (mirrors suna's turn-based renderer). */
+const turns = computed(() => {
+  const out: { user: ChatMessage | null; assistant: ChatMessage[] }[] = []
+  for (const m of messages.value) {
+    if (m.info.role === 'user') {
+      out.push({user: m, assistant: []})
+    } else {
+      if (out.length === 0) out.push({user: null, assistant: []})
+      out[out.length - 1]!.assistant.push(m)
+    }
+  }
+  return out.filter((t) => (t.user && partsText(t.user.parts)) || t.assistant.some((m) => partsText(m.parts)))
+})
 
 onMounted(async () => {
   client = await createOpencodeClient()
@@ -43,11 +57,13 @@ onMounted(async () => {
   await loadMessages(sessionId.value)
   window.addEventListener('mousemove', onMove)
   window.addEventListener('mouseup', onUp)
+  window.addEventListener('keydown', onGlobalKey)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('mousemove', onMove)
   window.removeEventListener('mouseup', onUp)
+  window.removeEventListener('keydown', onGlobalKey)
 })
 
 watch(sessionId, (id) => {
@@ -56,9 +72,16 @@ watch(sessionId, (id) => {
 
 watch(messages, () => {
   nextTick(() => {
-    scrollRef.value?.scrollTo({ top: scrollRef.value.scrollHeight, behavior: 'smooth' })
+    scrollRef.value?.scrollTo({top: scrollRef.value.scrollHeight, behavior: 'smooth'})
   })
 })
+
+function onGlobalKey(e: KeyboardEvent) {
+  if ((e.metaKey || e.ctrlKey) && (e.key === 'i' || e.key === 'I')) {
+    e.preventDefault()
+    panelOpen.value = !panelOpen.value
+  }
+}
 
 async function refreshSessions() {
   loadingSessions.value = true
@@ -75,7 +98,7 @@ async function refreshSessions() {
 
 async function loadMessages(id: string) {
   try {
-    const res = await client!.session.messages({ path: { id } })
+    const res = await client!.session.messages({path: {id}})
     messages.value = unwrap<ChatMessage[]>(res)
   } catch {
     messages.value = []
@@ -83,24 +106,42 @@ async function loadMessages(id: string) {
 }
 
 async function createSession() {
+  if (creating.value) return
+  creating.value = true
   try {
-    const res = await client!.session.create({ body: { title: 'New session' } })
+    const res = await client!.session.create({body: {title: 'New session'}})
     const created = unwrap<SessionInfo>(res)
     sessions.value = [created, ...sessions.value]
     await navigateTo(`/projects/${projectId.value}/sessions/${created.id}`)
   } catch {
     connectError.value = OPENCODE_CONNECT_ERROR
+  } finally {
+    creating.value = false
   }
 }
 
-async function send() {
-  const text = input.value.trim()
-  if (!text || sending.value) return
+async function deleteSession(id: string) {
+  try {
+    await client!.session.delete({path: {id}})
+    sessions.value = sessions.value.filter((s) => s.id !== id)
+    if (id === sessionId.value) {
+      await navigateTo(`/projects/${projectId.value}`)
+    }
+  } catch {
+    connectError.value = OPENCODE_CONNECT_ERROR
+  }
+}
+
+async function send(text: string) {
+  if (sending.value) return
   input.value = ''
   sending.value = true
-  messages.value = [...messages.value, { info: { id: `local-${Date.now()}`, role: 'user' }, parts: [{ type: 'text', text }] }]
+  messages.value = [...messages.value, {info: {id: `local-${Date.now()}`, role: 'user'}, parts: [{type: 'text', text}]}]
   try {
-    await client!.session.prompt({ path: { id: sessionId.value }, body: { model: OPENCODE_MODEL, parts: [{ type: 'text', text }] } })
+    await client!.session.prompt({
+      path: {id: sessionId.value},
+      body: {model: OPENCODE_MODEL, parts: [{type: 'text', text}]}
+    })
     await loadMessages(sessionId.value)
   } catch {
     connectError.value = OPENCODE_CONNECT_ERROR
@@ -113,7 +154,7 @@ function onMove(e: MouseEvent) {
   if (!dragging.value || !dragRef.value) return
   const rect = dragRef.value.getBoundingClientRect()
   const pct = ((e.clientX - rect.left) / rect.width) * 100
-  splitPct.value = Math.min(70, Math.max(30, pct))
+  splitPct.value = Math.min(65, Math.max(30, pct))
 }
 
 function onUp() {
@@ -126,100 +167,118 @@ function startDrag() {
   document.body.style.cursor = 'col-resize'
 }
 
-function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault()
-    send()
-  }
-}
-
 function selectSession(id: string) {
   navigateTo(`/projects/${projectId.value}/sessions/${id}`)
 }
 </script>
 
 <template>
-  <div class="flex h-screen overflow-hidden bg-background">
-    <WorkspaceSidebar
+  <ProjectShell
       :project-id="projectId"
       :sessions="sessions"
       :active-session-id="sessionId"
       :loading="loadingSessions"
+      :creating="creating"
       @select="selectSession"
       @create="createSession"
-    />
-
-    <div class="flex min-h-0 flex-1 flex-col overflow-hidden md:my-3 md:mr-3 md:rounded-xl md:border md:border-border/60">
-      <div v-if="connectError" class="flex items-center gap-2 border-b border-border/60 bg-destructive/[0.06] px-5 py-2.5 text-sm text-destructive">
-        <AlertCircle class="size-4 shrink-0" />
+      @delete="deleteSession"
+  >
+    <div class="flex h-full flex-col overflow-hidden bg-background">
+      <div v-if="connectError"
+           class="flex items-center gap-2 border-b border-border/60 bg-destructive/6 px-5 py-2.5 text-sm text-destructive">
+        <AlertCircleIcon class="size-4 shrink-0"/>
         {{ connectError }}
       </div>
 
-      <div ref="dragRef" class="flex min-h-0 flex-1 overflow-hidden">
-        <!-- Chat pane -->
-        <div class="flex min-w-0 flex-col overflow-hidden" :style="{ width: panelOpen ? `${splitPct}%` : '100%' }">
-          <div class="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border/60 px-5">
-            <span class="truncate text-sm font-medium text-foreground">{{ activeSession?.title || activeSession?.id || sessionId }}</span>
-            <Button v-if="!panelOpen" size="sm" variant="outline" class="gap-1.5" @click="panelOpen = true">
-              <ListTree class="size-3.5" />
-              Show panel
-            </Button>
-          </div>
-          <div ref="scrollRef" class="flex-1 overflow-y-auto px-5 py-6">
-            <EmptyState v-if="messages.length === 0" :icon="Bot" title="Say hello">
-              <template #description>Send a message to kick off the conversation.</template>
-            </EmptyState>
-            <div v-else class="mx-auto flex max-w-3xl flex-col gap-5">
-              <template v-for="m in messages" :key="m.info.id">
-                <ChatBubble v-if="partsText(m.parts) && m.info.role === 'user'">
-                  <p class="whitespace-pre-wrap text-sm text-foreground">{{ partsText(m.parts) }}</p>
-                </ChatBubble>
-                <div v-else-if="partsText(m.parts)" class="flex items-start gap-2.5">
-                  <EntityAvatar size="sm" :icon="Bot" class="mt-0.5 shrink-0" />
-                  <p class="whitespace-pre-wrap text-sm leading-relaxed text-foreground">{{ partsText(m.parts) }}</p>
-                </div>
-              </template>
-              <div v-if="sending" class="flex items-center gap-2.5 text-sm text-muted-foreground">
-                <EntityAvatar size="sm" :icon="Bot" class="shrink-0" />
-                <span class="inline-flex items-center gap-1.5"><Loader2 class="size-3.5 animate-spin" />Thinking…</span>
-              </div>
-            </div>
-          </div>
-          <div class="border-t border-border/60 px-5 py-4">
-            <div class="mx-auto max-w-3xl">
-              <ChatInputShell>
-                <Textarea
-                  v-model="input"
-                  placeholder="Message OpenCode…"
-                  class="min-h-[52px] resize-none border-0 bg-transparent px-4 pt-3 shadow-none focus-visible:ring-0"
-                  @keydown="onKeydown"
-                />
-                <div class="flex items-center justify-end px-3 pb-2.5">
-                  <Button size="icon" class="size-8 rounded-full" :disabled="!input.trim() || sending" @click="send">
-                    <Send class="size-4" />
-                  </Button>
-                </div>
-              </ChatInputShell>
-            </div>
-          </div>
-        </div>
-
-        <!-- Drag handle -->
+      <div ref="dragRef" class="flex min-h-0 flex-1 overflow-hidden bg-background">
+        <!-- Main content panel (chat) -->
         <div
-          v-if="panelOpen"
-          role="separator"
-          aria-orientation="vertical"
-          class="group flex w-px shrink-0 cursor-col-resize items-center justify-center bg-border/60 hover:bg-border"
-          @mousedown="startDrag"
+            :class="cn('relative flex flex-col overflow-hidden bg-transparent', panelOpen && 'pl-3 pr-1.5')"
+            :style="{ width: panelOpen ? `${splitPct}%` : '100%' }"
         >
-          <span class="h-8 w-[3px] rounded-full bg-border/0 transition-colors group-hover:bg-foreground/20" />
+          <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div class="relative flex h-full flex-col bg-background">
+              <SessionSiteHeader
+                  :is-side-panel-open="panelOpen"
+                  @toggle-side-panel="panelOpen = !panelOpen"
+                  @new-session="createSession"
+                  @delete="deleteSession(sessionId)"
+              />
+
+              <!-- Messages -->
+              <div class="relative z-10 min-h-0 flex-1">
+                <div
+                    ref="scrollRef"
+                    class="relative h-full flex-1 overflow-y-auto bg-background px-4 py-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] scrollbar-none"
+                >
+                  <div role="log" class="mx-auto w-full min-w-0 max-w-3xl px-3 sm:px-6">
+                    <div class="flex min-w-0 flex-col pt-8">
+                      <div
+                          v-for="(turn, i) in turns"
+                          :key="turn.user?.info.id ?? i"
+                          :class="cn('space-y-3', i !== 0 && 'mt-12')"
+                      >
+                        <!-- User message -->
+                        <div v-if="turn.user && partsText(turn.user.parts)" class="flex justify-end">
+                          <div
+                              class="flex max-w-[90%] flex-col overflow-hidden rounded-3xl rounded-br-lg border bg-card">
+                            <p class="min-w-0 whitespace-pre-wrap wrap-break-word px-4 py-3 text-sm leading-relaxed">
+                              {{ partsText(turn.user.parts) }}</p>
+                          </div>
+                        </div>
+
+                        <!-- Assistant response -->
+                        <template v-if="turn.assistant.some((m) => partsText(m.parts))">
+                          <div class="flex flex-row relative">
+                            <Logo variant="symbol" class="h-4 w-auto shrink-0 absolute -left-7 top-1"/>
+                            <div>
+                              <div v-for="m in turn.assistant" :key="m.info.id">
+                                <MDC :value="partsText(m.parts)" v-if="partsText(m.parts)" class="whitespace-pre-wrap text-sm leading-relaxed">
+                                </MDC>
+                              </div>
+                            </div>
+                          </div>
+                        </template>
+                      </div>
+
+                      <!-- Working indicator -->
+                      <div v-if="!sending"  :class="cn('space-y-2', turns.length > 0 && 'mt-12')">
+                        <div class="flex items-center gap-2 py-1 text-xs text-muted-foreground transition-colors relative">
+                          <Logo variant="symbol" class="h-4 w-auto shrink-0 absolute -left-7 top-1"/>
+                          <AnimatedThinkingText />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Composer -->
+              <SessionChatInput v-model="input" :busy="sending" autofocus @send="send"/>
+            </div>
+          </div>
         </div>
 
-        <!-- Side panel -->
-        <div v-if="panelOpen" class="flex min-w-0 flex-1 flex-col overflow-hidden border-l border-border/60">
-          <WorkspaceSidePanel :view="panelView" @change-view="panelView = $event" @close="panelOpen = false" />
+        <!-- Resize handle -->
+        <div v-if="panelOpen" class="relative z-20 w-0">
+          <div
+              role="separator"
+              aria-orientation="vertical"
+              class="absolute inset-y-0 -left-1.5 -right-1.5 cursor-col-resize bg-transparent hover:bg-border/20"
+              @mousedown="startDrag"
+          />
+        </div>
+
+        <!-- Side panel — Actions / Browser / Files / Terminal -->
+        <div v-if="panelOpen" class="relative min-w-0 flex-1 overflow-hidden bg-background">
+          <div class="h-full bg-background pb-6 pl-1.5 pr-3 pt-3 sm:pr-4">
+            <div class="flex h-full w-full min-w-0 flex-col overflow-hidden rounded-md border border-border bg-card"
+                 style="min-height: 0">
+              <WorkspaceSidePanel :view="panelView" @change-view="panelView = $event" @close="panelOpen = false"/>
+            </div>
+          </div>
         </div>
       </div>
     </div>
-  </div>
+  </ProjectShell>
 </template>

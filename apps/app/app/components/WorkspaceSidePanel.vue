@@ -1,20 +1,17 @@
 <script setup lang="ts">
-import { Button, ToolCallCard, cn } from '@hoshi/ui'
-import {
-  ListTree, Globe, FolderOpen, Terminal, X,
-  Search, FileText, Edit3,
-} from 'lucide-vue-next'
+import { ToolCallCard, cn } from '@hoshi/ui'
+import { Globe, X, Search, FileText, Edit3 } from 'lucide-vue-next'
 
 export type PanelView = 'actions' | 'browser' | 'files' | 'terminal'
 
 defineProps<{ view: PanelView }>()
 const emit = defineEmits<{ 'change-view': [view: PanelView]; close: [] }>()
 
-const PANEL_TABS: { id: PanelView; label: string; icon: any }[] = [
-  { id: 'actions', label: 'Actions', icon: ListTree },
-  { id: 'browser', label: 'Browser', icon: Globe },
-  { id: 'files', label: 'Files', icon: FolderOpen },
-  { id: 'terminal', label: 'Terminal', icon: Terminal },
+const PANEL_TABS: { id: PanelView; label: string }[] = [
+  { id: 'actions', label: 'Actions' },
+  { id: 'browser', label: 'Browser' },
+  { id: 'files', label: 'Files' },
+  { id: 'terminal', label: 'Terminal' },
 ]
 
 const MOCK_TOOL_CALLS = [
@@ -34,8 +31,8 @@ const TERMINAL_LINES = [
 
 <template>
   <div class="flex h-full flex-col overflow-hidden">
-    <div class="flex h-10 shrink-0 items-center justify-between border-b border-border/50 pl-4 pr-2">
-      <div role="tablist" class="flex items-center gap-5">
+    <div class="flex h-10 shrink-0 items-center justify-between border-b border-border/60 pl-4 pr-2">
+      <div role="tablist" aria-label="Side panel view" class="flex items-center gap-5">
         <button
           v-for="tab in PANEL_TABS"
           :key="tab.id"
@@ -43,19 +40,23 @@ const TERMINAL_LINES = [
           role="tab"
           :aria-selected="view === tab.id"
           :class="cn(
-            'relative flex cursor-pointer items-center gap-1.5 pb-2.5 pt-3 text-sm transition-colors',
-            view === tab.id ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
+            'relative inline-flex h-10 cursor-pointer items-center text-xs tracking-tight transition-colors',
+            view === tab.id ? 'font-medium text-foreground' : 'text-muted-foreground/70 hover:text-foreground/90',
           )"
           @click="emit('change-view', tab.id)"
         >
-          <component :is="tab.icon" class="size-3.5" />
           {{ tab.label }}
-          <span v-if="view === tab.id" class="absolute -bottom-px left-0 right-0 h-[2px] bg-foreground/80" />
+          <span v-if="view === tab.id" aria-hidden class="absolute -bottom-px left-0 right-0 h-px bg-foreground" />
         </button>
       </div>
-      <Button size="icon" variant="ghost" class="size-6" title="Close panel (Cmd+I)" @click="emit('close')">
-        <X class="size-3.5" />
-      </Button>
+      <button
+        type="button"
+        class="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-muted-foreground/70 transition-colors hover:bg-foreground/[0.04] hover:text-foreground"
+        title="Close panel (⌘I)"
+        @click="emit('close')"
+      >
+        <X class="h-3.5 w-3.5" />
+      </button>
     </div>
     <div class="min-h-0 flex-1 overflow-hidden">
       <!-- Actions -->

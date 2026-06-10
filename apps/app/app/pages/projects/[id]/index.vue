@@ -1,20 +1,23 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { Button, Textarea, ChatInputShell, EntityAvatar } from '@hoshi/ui'
-import { ArrowUp, Bot, Loader2, Building2, Globe, Search, Presentation } from 'lucide-vue-next'
+import { ref, computed } from 'vue'
+import { EntityAvatar, cn } from '@hoshi/ui'
+import { AlertCircle, ArrowUp, Building2, Globe, Search, Presentation } from 'lucide-vue-next'
 import {
   createOpencodeClient,
   unwrap,
   OPENCODE_MODEL,
   OPENCODE_CONNECT_ERROR,
   type OpencodeClient,
+  type SessionInfo,
 } from '~/composables/useOpencode'
+import { useProjects } from '~/composables/useProjects'
 
 definePageMeta({ middleware: 'auth' })
 
 const route = useRoute()
-const user = useAuthUser()
 const projectId = computed(() => route.params.id as string)
+const { projects } = useProjects()
+const projectName = computed(() => projects.value.find((p) => p.id === projectId.value)?.name ?? 'Your project')
 
 const STARTERS = [
   { icon: Building2, label: 'Research a competitor' },
@@ -27,9 +30,19 @@ let client: OpencodeClient | null = null
 const input = ref('')
 const creating = ref(false)
 const error = ref<string | null>(null)
+const sessions = ref<SessionInfo[]>([])
+const loadingSessions = ref(true)
 
 onMounted(async () => {
   client = await createOpencodeClient()
+  try {
+    const list = await client.session.list()
+    sessions.value = unwrap<SessionInfo[]>(list)
+  } catch {
+    error.value = OPENCODE_CONNECT_ERROR
+  } finally {
+    loadingSessions.value = false
+  }
 })
 
 async function startSession(prompt?: string) {
@@ -53,18 +66,37 @@ async function startSession(prompt?: string) {
   }
 }
 
-function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault()
-    startSession()
+async function deleteSession(id: string) {
+  try {
+    await client!.session.delete({ path: { id } })
+    sessions.value = sessions.value.filter((s) => s.id !== id)
+  } catch {
+    error.value = OPENCODE_CONNECT_ERROR
   }
+}
+
+function applySuggestion(label: string) {
+  input.value = label
+}
+
+function selectSession(id: string) {
+  navigateTo(`/projects/${projectId.value}/sessions/${id}`)
 }
 </script>
 
 <template>
-  <div class="flex h-screen flex-col overflow-hidden bg-background">
-    <AppHeader v-if="user" :user="user" breadcrumb="Project" />
-    <div class="relative flex flex-1 flex-col overflow-hidden">
+  <ProjectShell
+    :project-id="projectId"
+    :sessions="sessions"
+    :active-session-id="null"
+    :loading="loadingSessions"
+    :creating="creating"
+    @select="selectSession"
+    @create="startSession()"
+    @delete="deleteSession"
+  >
+    <div class="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
+      <!-- Empty-state backdrop -->
       <div
         class="pointer-events-none absolute inset-0 z-0 opacity-40"
         aria-hidden="true"
@@ -75,45 +107,70 @@ function onKeydown(e: KeyboardEvent) {
           WebkitMaskImage: 'radial-gradient(ellipse 60% 50% at 50% 35%, black 0%, transparent 70%)',
         }"
       />
-      <div class="relative z-10 mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center gap-8 px-6 text-center">
-        <div class="flex flex-col items-center gap-3">
-          <EntityAvatar :icon="Bot" size="xl" class="shadow-sm" />
-          <h1 class="text-2xl font-semibold tracking-tight text-foreground">What are we building today?</h1>
-          <p class="text-sm text-muted-foreground">Start a session and OpenCode will pick up right where you leave off.</p>
-        </div>
 
-        <div class="w-full">
-          <p v-if="error" class="mb-2 text-sm text-destructive">{{ error }}</p>
-          <ChatInputShell>
-            <Textarea
-              v-model="input"
-              placeholder="Describe what you want to do…"
-              class="min-h-[64px] resize-none border-0 bg-transparent px-4 pt-3 text-left shadow-none focus-visible:ring-0"
-              @keydown="onKeydown"
-            />
-            <div class="flex items-center justify-end px-3 pb-2.5">
-              <Button size="icon" class="size-8 rounded-full" :disabled="creating" @click="startSession()">
-                <Loader2 v-if="creating" class="size-4 animate-spin" />
-                <ArrowUp v-else class="size-4" />
-              </Button>
+      <!-- Hero -->
+      <div class="relative z-10 min-h-0 flex-1 overflow-y-auto">
+        <div class="mx-auto flex min-h-full w-full max-w-4xl flex-col px-6 py-8">
+          <div class="m-auto w-full">
+            <div class="mx-auto flex w-full max-w-2xl flex-col items-center text-center">
+              <EntityAvatar :label="projectName" size="xl" class="shadow-sm" />
+              <h1 class="mt-5 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">{{ projectName }}</h1>
             </div>
-          </ChatInputShell>
+          </div>
         </div>
+      </div>
 
-        <div class="flex flex-wrap items-center justify-center gap-2">
-          <button
-            v-for="{ icon: Icon, label } in STARTERS"
-            :key="label"
-            type="button"
-            :disabled="creating"
-            class="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-border/60 bg-card px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
-            @click="startSession(label)"
-          >
-            <component :is="Icon" class="size-3.5" />
-            {{ label }}
-          </button>
+      <!-- Bottom dock — starter chips over the pinned composer -->
+      <div class="relative z-10 shrink-0">
+        <div class="mx-auto w-full max-w-[52rem] px-2 pb-6 sm:px-4">
+          <p v-if="error" class="mb-2 flex items-center gap-1.5 px-2 text-sm text-destructive">
+            <AlertCircle class="size-3.5 shrink-0" />
+            {{ error }}
+          </p>
+
+          <div class="flex items-center gap-2 overflow-x-auto px-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            <button
+              v-for="{ icon: Icon, label } in STARTERS"
+              :key="label"
+              type="button"
+              :disabled="creating"
+              class="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-border/60 bg-card px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+              @click="applySuggestion(label)"
+            >
+              <component :is="Icon" class="size-3.5" />
+              {{ label }}
+            </button>
+          </div>
+
+          <div :class="cn('mt-2.5 w-full overflow-visible rounded-[24px] border border-border bg-card transition-colors', 'focus-within:border-foreground/20')">
+            <div class="flex flex-col gap-2">
+              <div class="px-3.5">
+                <textarea
+                  v-model="input"
+                  rows="1"
+                  autofocus
+                  placeholder="Describe a task to start a session…"
+                  class="relative max-h-[200px] min-h-[72px] w-full resize-none overflow-y-auto border-none bg-transparent px-0.5 pb-6 pt-4 text-base leading-relaxed outline-none placeholder:text-muted-foreground sm:text-sm"
+                  @keydown.enter.exact.prevent="startSession()"
+                />
+              </div>
+              <div class="mb-1.5 flex items-center justify-between gap-1 pl-2 pr-1.5">
+                <div class="flex min-w-0 items-center gap-2" />
+                <button
+                  type="button"
+                  :disabled="creating || !input.trim()"
+                  aria-label="Start session"
+                  class="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full bg-primary p-0 text-primary-foreground transition-opacity hover:opacity-90 disabled:pointer-events-none disabled:opacity-50"
+                  @click="startSession()"
+                >
+                  <span v-if="creating" class="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  <ArrowUp v-else class="size-4" />
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
-  </div>
+  </ProjectShell>
 </template>

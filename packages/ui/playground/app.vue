@@ -162,7 +162,7 @@ import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
   UserAvatar,
   type DataTableColumn,
-} from "@kortix/nuxt-ui"
+} from "@hoshi/ui"
 
 type IssueRow = {
   id: string

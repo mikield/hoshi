@@ -7,7 +7,7 @@ const props = defineProps<{ class?: string; inset?: boolean }>()
 <template>
   <Primitive
     data-slot="dropdown-menu-label"
-    :data-inset="inset"
+    :data-inset="inset ? '' : undefined"
     :class="cn('px-2 py-1.5 text-sm font-medium data-[inset]:pl-8', props.class)"
   ><slot /></Primitive>
 </template>

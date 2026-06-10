@@ -1,58 +1,30 @@
 <script setup lang="ts">
-import {useColorMode} from "@vueuse/core";
-
-interface LogoAsset {
-  id: string
-  variant: "symbol" | "logo"
-  src: string
-  dark: boolean
-}
+import { computed } from "vue"
+import { cn } from "../lib/utils"
 
 interface Props {
   variant?: "symbol" | "logo"
 }
 
-const LOGO_ASSETS: LogoAsset[] = [
-  {
-    id: "brandmark-black",
-    variant: "symbol",
+const props = withDefaults(defineProps<Props>(), { variant: "logo" })
+
+// Theme handling is pure CSS: ship one asset and
+// invert it for the opposite mode, so the logo never depends on JS color-mode
+// state being resolved.
+const ASSETS = {
+  symbol: {
     src: "/brandkit/Logo/Brandmark/SVG/Brandmark Black.svg",
-    dark: false
+    class: "dark:invert",
   },
-  {
-    id: "brandmark-white",
-    variant: "symbol",
-    src: "/brandkit/Logo/Brandmark/SVG/Brandmark White.svg",
-    dark: true
-  },
-  {
-    id: "logomark-black",
-    variant: "logo",
-    src: "/brandkit/Logo/Logomark/SVG/Logomark Black.svg",
-    dark: false
-  },
-  {
-    id: "logomark-white",
-    variant: "logo",
+  logo: {
     src: "/brandkit/Logo/Logomark/SVG/Logomark White.svg",
-    dark: true
+    class: "invert dark:invert-0",
   },
-]
+} as const
 
-const props = withDefaults(defineProps<Props>(), {variant: 'logo'});
-
-const colorMode = useColorMode();
-console.log(colorMode.value)
-
-const path = computed(function () {
-  const variants = LOGO_ASSETS.filter(asset => asset.variant === props.variant);
-  return variants.filter(asset =>
-    colorMode.value === 'dark' ? asset.dark : !asset.dark
-  )[0].src;
-})
-
+const asset = computed(() => ASSETS[props.variant])
 </script>
 
 <template>
-  <img :src="path" alt="Logo"/>
+  <img :src="asset.src" alt="Logo" :class="cn('shrink-0 select-none', asset.class)" />
 </template>

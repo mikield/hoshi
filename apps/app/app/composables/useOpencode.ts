@@ -2,7 +2,12 @@ export const OPENCODE_SERVER_URL = 'http://localhost:4096'
 export const OPENCODE_MODEL = { providerID: 'anthropic', modelID: 'claude-3-5-sonnet-20241022' }
 export const OPENCODE_CONNECT_ERROR = `Couldn't reach the OpenCode server at ${OPENCODE_SERVER_URL} — make sure \`opencode serve\` is running.`
 
-export type SessionInfo = { id: string; title?: string }
+export type SessionInfo = {
+  id: string
+  title?: string
+  parentID?: string
+  time?: { created?: number; updated?: number }
+}
 export type Part = { type: string; text?: string }
 export type ChatMessage = { info: { id: string; role: 'user' | 'assistant' }; parts: Part[] }
 export type OpencodeClient = Awaited<ReturnType<typeof createOpencodeClient>>

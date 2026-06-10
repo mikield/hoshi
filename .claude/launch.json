@@ -9,11 +9,11 @@
       "port": 3200
     },
     {
-      "name": "nuxt-ui-playground",
+      "name": "ui-playground",
       "runtimeExecutable": "./node_modules/.bin/nuxt",
-      "runtimeArgs": ["dev", "--port", "3100"],
-      "cwd": "packages/nuxt-ui/playground",
-      "port": 3100
+      "runtimeArgs": ["dev", "--port", "3001"],
+      "cwd": "packages/ui/playground",
+      "port": 3002
     },
     {
       "name": "nuxt-design-system",

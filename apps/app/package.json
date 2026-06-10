@@ -12,6 +12,7 @@
   "dependencies": {
     "@hoshi/ui": "workspace:*",
     "@nuxtjs/color-mode": "4.0.1",
+    "@nuxtjs/mdc": "0.22.0",
     "@opencode-ai/sdk": "^1.14.28",
     "@tailwindcss/vite": "^4.0.0",
     "bcryptjs": "^3.0.3",
