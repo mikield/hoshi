@@ -223,6 +223,7 @@ export { default as Toaster } from "./components/Toaster.vue"
 
 export { default as StatusBadge } from "./components/StatusBadge.vue"
 export { default as StatusDot } from "./components/StatusDot.vue"
+export { default as StatPill } from "./components/StatPill.vue"
 export { default as DiffStat } from "./components/DiffStat.vue"
 export * from "./components/status"
 
