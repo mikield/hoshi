@@ -20,7 +20,9 @@ import {
   Edit3,
   FileText,
   FolderOpen,
+  GitFork,
   Globe,
+  History,
   ListChecks,
   Search,
   Terminal,
@@ -46,6 +48,19 @@ const props = withDefaults(
   }>(),
   { agents: () => [] },
 )
+
+const emit = defineEmits<{
+  /** Branch a new session starting from this user message. */
+  fork: [messageID: string]
+  /** Roll the session back to the state before this user message. */
+  rewind: [messageID: string]
+}>()
+
+/** History actions need a server-side message id — optimistic ones don't have it yet. */
+const persistedUserId = computed(() => {
+  const id = props.user?.info.id
+  return id && !id.startsWith('local-') ? id : null
+})
 
 const items = computed(() => turnItems(props.assistant))
 const compaction = computed(() => props.assistant.some(isCompaction))
@@ -192,7 +207,23 @@ function isLastItem(index: number): boolean {
         </div>
       </div>
       <!-- Hover actions -->
-      <div v-if="userText" class="mt-1 flex justify-end opacity-0 transition-opacity duration-150 group-hover/turn:opacity-100">
+      <div v-if="userText" class="mt-1 flex justify-end gap-0.5 opacity-0 transition-opacity duration-150 group-hover/turn:opacity-100">
+        <Tooltip v-if="persistedUserId">
+          <TooltipTrigger as-child>
+            <Button variant="ghost" size="icon-xs" aria-label="Fork from here" @click="emit('fork', persistedUserId)">
+              <GitFork class="size-3.5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Fork from here</TooltipContent>
+        </Tooltip>
+        <Tooltip v-if="persistedUserId">
+          <TooltipTrigger as-child>
+            <Button variant="ghost" size="icon-xs" aria-label="Rewind to here" @click="emit('rewind', persistedUserId)">
+              <History class="size-3.5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Rewind to here</TooltipContent>
+        </Tooltip>
         <Tooltip>
           <TooltipTrigger as-child>
             <Button variant="ghost" size="icon-xs" :aria-label="copied === 'user' ? 'Copied' : 'Copy message'" @click="copy('user')">

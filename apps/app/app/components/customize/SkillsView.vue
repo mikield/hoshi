@@ -24,6 +24,10 @@ function skillByName(name: string): SkillInfo | undefined {
         <MarkdownContent v-if="skillByName(item.id)?.description" class="mt-6">
           <p>{{ skillByName(item.id)!.description }}</p>
         </MarkdownContent>
+        <p class="mt-8 rounded-2xl border border-border/60 bg-muted/20 px-4 py-3 text-xs text-muted-foreground">
+          Skills are files on your machine — OpenCode exposes them read-only. Editing from here arrives
+          together with the machine terminal.
+        </p>
       </div>
     </template>
   </CustomizeListDetailSection>

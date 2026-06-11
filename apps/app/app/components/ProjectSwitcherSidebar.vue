@@ -6,10 +6,11 @@ import {
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
+  Skeleton,
   cn,
 } from '@hoshi/ui'
 import { ArrowUpRight, Check, ChevronsUpDown, Plus } from 'lucide-vue-next'
-import { useProjects, shortRelative, sqliteTimestamp } from '~/composables/useProjects'
+import { shortRelative, sqliteTimestamp } from '~/composables/useProjects'
 
 const props = defineProps<{
   projectId: string
@@ -17,12 +18,14 @@ const props = defineProps<{
 }>()
 
 const projectsStore = useProjectsStore()
-const { projects, now } = storeToRefs(projectsStore)
+const { projects, now, loading } = storeToRefs(projectsStore)
 
 onMounted(() => projectsStore.load())
 
 const activeProject = computed(() => projects.value.find((p) => p.id === props.projectId))
 const label = computed(() => activeProject.value?.name ?? 'Projects')
+/** True until the active project's name is actually known. */
+const resolving = computed(() => loading.value && !activeProject.value)
 
 function switchProject(id: string) {
   if (id === props.projectId) return
@@ -31,7 +34,11 @@ function switchProject(id: string) {
 </script>
 
 <template>
-  <DropdownMenu>
+  <div v-if="resolving" :class="cn('flex w-full items-center gap-2 px-1.5 py-1', collapsed && 'justify-center gap-0 px-0')">
+    <Skeleton class="size-6 rounded-md" />
+    <Skeleton v-if="!collapsed" class="h-4 flex-1 rounded-md" />
+  </div>
+  <DropdownMenu v-else>
     <DropdownMenuTrigger as-child>
       <button
         type="button"

@@ -18,10 +18,13 @@ const NAV = [
 function isActive(to: string): boolean {
   return to === '/admin' ? route.path === '/admin' : route.path.startsWith(to)
 }
+
+// Template note: the v-if/v-else pair must stay the only root nodes — pages
+// root on AdminShell, and a fragment (or leading comment node) breaks page
+// transitions. The denied branch mirrors Suna's in-shell access screen.
 </script>
 
 <template>
-  <!-- Access denied — same in-shell screen Suna shows instead of redirecting. -->
   <div v-if="!isAdmin" class="flex min-h-screen items-center justify-center bg-background px-6">
     <div class="max-w-md text-center">
       <div class="mx-auto mb-4 flex size-10 items-center justify-center rounded-2xl bg-muted/60">

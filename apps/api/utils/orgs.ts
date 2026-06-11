@@ -21,16 +21,21 @@ export async function requireMembership(
   return { session, role: membership.role }
 }
 
-/** Resolve a project the caller can access through org membership. */
+/** Resolve a project the caller can access through org membership,
+ *  optionally demanding an org role (e.g. 'admin' for management actions). */
 export async function requireProjectAccess(
   event: H3Event,
   projectId: string,
+  minRole: OrgRole = 'member',
 ): Promise<{ session: SessionPayload; project: ProjectRow; role: OrgRole }> {
   const session = await requireAuth(event)
   const project = findProject(projectId)
   const membership = project && getMembership(project.org_id, session.userId)
   if (!project || !membership) {
     throw createError({ statusCode: 404, statusMessage: 'Project not found.' })
+  }
+  if (ROLE_RANK[membership.role] < ROLE_RANK[minRole]) {
+    throw createError({ statusCode: 403, statusMessage: 'You need a higher role for that.' })
   }
   return { session, project, role: membership.role }
 }

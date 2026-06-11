@@ -54,6 +54,8 @@ export type ChatMessage = {
     summary?: boolean
     providerID?: string
     modelID?: string
+    /** Agent the turn ran under — sessions are effectively bound to one. */
+    agent?: string
     tokens?: TokenUsage
   }
   parts: Part[]
@@ -198,6 +200,12 @@ export type OpencodeEvent = { type: string; properties: Record<string, any> }
 
 export type SessionStatus = { type: 'idle' } | { type: 'busy' } | { type: 'retry'; attempt: number; message: string; next: number }
 
+/** Live status of every session on the server — the replay source when a
+ *  session page opens while the agent is still mid-turn. */
+export async function fetchSessionStatuses(client: OpencodeClient): Promise<Record<string, SessionStatus>> {
+  return unwrap<Record<string, SessionStatus>>(await client.session.status())
+}
+
 /** Long-lived /event subscription. Delivers every event to `onEvent` and
  *  resubscribes on dropped connections until the signal aborts. */
 export async function streamEvents(
@@ -268,6 +276,42 @@ export async function fetchSkills(): Promise<SkillInfo[]> {
   return skills.map(({ name, description }) => ({ name, description }))
 }
 
+/** Per-agent override stored in the machine's global config. */
+export type AgentConfigPatch = {
+  description?: string
+  prompt?: string
+  model?: string
+  disable?: boolean
+}
+
+/** Command definition stored in the machine's global config. */
+export type CommandConfigPatch = {
+  template: string
+  description?: string
+  agent?: string
+  model?: string
+}
+
+/** The machine's global OpenCode config — the source of truth Customize edits. */
+export async function fetchGlobalConfig(): Promise<Record<string, any>> {
+  const res = await fetch(opencodeUrl('/global/config'), { credentials: 'include' })
+  if (!res.ok) throw new Error(`GET /global/config failed: ${res.status}`)
+  return res.json()
+}
+
+/** Merge a partial config into the machine's global config (persists on the
+ *  machine and takes effect immediately). Note: merge-only — the OpenCode API
+ *  has no key deletion, so "remove" is expressed as `disable` where supported. */
+export async function patchGlobalConfig(patch: Record<string, unknown>): Promise<void> {
+  const res = await fetch(opencodeUrl('/global/config'), {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+  if (!res.ok) throw new Error(`PATCH /global/config failed: ${res.status}`)
+}
+
 /** Configured MCP servers with their connection status. */
 export async function fetchMcpServers(): Promise<McpServerInfo[]> {
   const res = await fetch(opencodeUrl('/mcp'), { credentials: 'include' })
@@ -276,16 +320,30 @@ export async function fetchMcpServers(): Promise<McpServerInfo[]> {
   return Object.entries(servers).map(([name, info]) => ({ name, status: info.status }))
 }
 
+/** Everything the model held in its window on a turn: prompt (fresh + cached)
+ *  plus what it generated. `total` alone undercounts on providers that report
+ *  cache reads separately, so sum the parts. */
+export function tokensInWindow(tokens: TokenUsage): number {
+  const summed =
+    (tokens.input ?? 0) +
+    (tokens.cache?.read ?? 0) +
+    (tokens.cache?.write ?? 0) +
+    (tokens.output ?? 0) +
+    (tokens.reasoning ?? 0)
+  return summed > 0 ? summed : (tokens.total ?? 0)
+}
+
 /** Context-window usage: tokens held by the newest assistant message vs the
  *  active model's limit. Returns null until both sides are known. */
 export function contextUsage(
   messages: ChatMessage[],
   models: ModelOption[],
 ): { used: number; limit: number } | null {
-  const latest = [...messages].reverse().find((m) => m.info.role === 'assistant' && m.info.tokens?.total)
+  const latest = [...messages]
+    .reverse()
+    .find((m) => m.info.role === 'assistant' && m.info.tokens && tokensInWindow(m.info.tokens) > 0)
   if (!latest) return null
-  const tokens = latest.info.tokens!
-  const used = tokens.total ?? 0
+  const used = tokensInWindow(latest.info.tokens!)
   const model = models.find(
     (m) => m.providerID === latest.info.providerID && m.modelID === latest.info.modelID,
   )

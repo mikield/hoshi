@@ -5,7 +5,7 @@ import { AlertCircle, ArrowLeft } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
 import type { AuthUser } from '~/stores/auth'
 
-definePageMeta({ layout: false })
+definePageMeta({ layout: 'auth' })
 
 const route = useRoute()
 const token = computed(() => (typeof route.query.token === 'string' ? route.query.token : null))
@@ -42,7 +42,7 @@ async function onSubmit() {
 </script>
 
 <template>
-  <AuthShell>
+  <div>
     <Logo class="mb-8" />
 
     <Divider>Choose a new password</Divider>
@@ -79,5 +79,5 @@ async function onSubmit() {
         Back to sign in
       </NuxtLink>
     </div>
-  </AuthShell>
+  </div>
 </template>

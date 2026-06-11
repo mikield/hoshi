@@ -17,7 +17,6 @@ const centerTopClass = computed(() => props.preview ? 'top-[50%]' : 'top-[46%]')
 </script>
 
 <template>
-  <!-- ── Variant 1: Brandmark — oversized faded SVG outline ── -->
   <div
     v-if="wallpaper.type === 'svg'"
     class="absolute inset-0 pointer-events-none overflow-hidden"
@@ -34,7 +33,6 @@ const centerTopClass = computed(() => props.preview ? 'top-[50%]' : 'top-[46%]')
     />
   </div>
 
-  <!-- ── Variant 2: Symbol — tiny centered mark at ghost opacity ── -->
   <div
     v-else-if="wallpaper.type === 'symbol'"
     class="absolute inset-0 pointer-events-none overflow-hidden"
@@ -51,7 +49,6 @@ const centerTopClass = computed(() => props.preview ? 'top-[50%]' : 'top-[46%]')
     />
   </div>
 
-  <!-- ── Variant 3: Aurora — breathing arc arcs + logomark ── -->
   <div
     v-else-if="wallpaper.type === 'aurora'"
     class="absolute inset-0 pointer-events-none overflow-hidden"
@@ -85,7 +82,6 @@ const centerTopClass = computed(() => props.preview ? 'top-[50%]' : 'top-[46%]')
       />
     </div>
 
-    <!-- Logomark, sized relative to actual container -->
     <img
       :src="wallpaper.svgUrl"
       alt=""
@@ -97,7 +93,6 @@ const centerTopClass = computed(() => props.preview ? 'top-[50%]' : 'top-[46%]')
     />
   </div>
 
-  <!-- ── Variant 4: Shader — CSS gradient fallback (WebGL pending Vue port) ── -->
   <div
     v-else-if="wallpaper.type === 'shader'"
     class="absolute inset-0 pointer-events-none overflow-hidden"
@@ -129,7 +124,6 @@ const centerTopClass = computed(() => props.preview ? 'top-[50%]' : 'top-[46%]')
     />
   </div>
 
-  <!-- ── Variant 5: Image wallpaper — light + dark pair ── -->
   <div
     v-else
     class="absolute inset-0 pointer-events-none overflow-hidden"

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {ref, computed, watch, nextTick, onBeforeUnmount} from 'vue'
-import {Logo, cn, AnimatedThinkingText, Skeleton} from '@hoshi/ui'
-import {AlertCircle as AlertCircleIcon} from 'lucide-vue-next'
+import {Logo, cn, AnimatedThinkingText, ChatMinimap, Skeleton} from '@hoshi/ui'
+import {AlertCircle as AlertCircleIcon, CornerLeftUp, GitBranch, TextQuote} from 'lucide-vue-next'
 import {toast} from 'vue-sonner'
 import type {PanelView} from '~/components/WorkspaceSidePanel.vue'
 import {
@@ -12,6 +12,7 @@ import {
   fetchModels,
   fetchAgents,
   fetchCommands,
+  fetchSessionStatuses,
   contextUsage,
   filePartsFrom,
   streamEvents,
@@ -28,13 +29,12 @@ import {
   type CommandOption,
   type OutgoingFile,
 } from '~/composables/useOpencode'
-import {
-  fetchProjectSessionIds,
-  registerProjectSession,
-  unregisterProjectSession,
-} from '~/composables/useProjects'
+import {registerProjectSession} from '~/composables/useProjects'
 
-definePageMeta({middleware: 'auth'})
+// The project layout owns the shell + session list; the stable key keeps this
+// page mounted across session switches — the sessionId watcher swaps the
+// thread in place instead of remounting.
+definePageMeta({middleware: 'auth', layout: 'project', key: 'project-session'})
 
 const route = useRoute()
 const projectId = computed(() => route.params.id as string)
@@ -42,18 +42,46 @@ const sessionId = computed(() => route.params.sessionId as string)
 
 let client: OpencodeClient | null = null
 const connectError = ref<string | null>(null)
-const sessions = ref<SessionInfo[]>([])
-const loadingSessions = ref(true)
-const creating = ref(false)
+const sessionsStore = useSessionsStore()
+const { sessions } = storeToRefs(sessionsStore)
 const messages = ref<ChatMessage[]>([])
 const loadingMessages = ref(true)
 const input = ref('')
+const quote = ref<string | null>(null)
 const sending = ref(false)
 /** Server-reported session activity (session.status / session.idle events). */
 const sessionBusy = ref(false)
+/** Human-readable detail of the retry/backoff state, when the server reports one. */
+const statusDetail = ref<string | null>(null)
 const busy = computed(() => sending.value || sessionBusy.value)
 const eventsAbort = new AbortController()
 const scrollRef = ref<HTMLDivElement | null>(null)
+
+/** Sub-sessions spawned from this one (task tool, forks with parentID). */
+const children = ref<SessionInfo[]>([])
+/** Parent session, when this one is itself a sub-session. */
+const parent = ref<SessionInfo | null>(null)
+
+/** What the agent is doing right now — the last still-running tool call. The
+ *  generic thinking animation is the fallback when nothing concrete is known. */
+const activity = computed(() => {
+  if (statusDetail.value) return statusDetail.value
+  for (let m = messages.value.length - 1; m >= 0; m--) {
+    const message = messages.value[m]!
+    if (message.info.role !== 'assistant') continue
+    for (let p = message.parts.length - 1; p >= 0; p--) {
+      const part = message.parts[p]!
+      if (part.type !== 'tool') continue
+      const status = part.state?.status
+      if (status === 'running' || status === 'pending') {
+        const detail = part.state?.title
+        return detail ? `${part.tool} · ${detail}` : part.tool ?? null
+      }
+    }
+    break
+  }
+  return null
+})
 
 const panelOpen = ref(false)
 const panelView = ref<PanelView>('actions')
@@ -64,6 +92,7 @@ const dragging = ref(false)
 const models = ref<ModelOption[]>([])
 const agents = ref<AgentOption[]>([])
 const commands = ref<CommandOption[]>([])
+const loadingSelectors = ref(true)
 // Persisted across sessions so the chosen model/agent sticks.
 const { selectedModel, selectedAgent } = storeToRefs(useChatStore())
 
@@ -91,14 +120,26 @@ const turns = computed(() => {
   )
 })
 
+/** One minimap entry per user message — the history anchors on the right rail. */
+const minimapItems = computed(() =>
+  turns.value
+    .filter((turn) => turn.user && partsText(turn.user.parts).trim())
+    .map((turn) => ({ id: turn.user!.info.id, text: partsText(turn.user!.parts).trim() })),
+)
+
 onMounted(async () => {
   client = await createOpencodeClient()
   streamEvents(client, onEvent, eventsAbort.signal)
-  await refreshSessions()
+  // The layout loads the list too — this await only orders the dead-session
+  // check in loadMessages after the list is known (no-op when already loaded).
+  await sessionsStore.load(projectId.value)
   await loadMessages(sessionId.value)
+  void replayStatus(sessionId.value)
+  void loadRelations(sessionId.value)
   window.addEventListener('mousemove', onMove)
   window.addEventListener('mouseup', onUp)
   window.addEventListener('keydown', onGlobalKey)
+  document.addEventListener('selectionchange', onSelectionChange)
   // Selector data is secondary — load it after the thread, tolerate failure.
   try {
     ;[models.value, agents.value, commands.value] = await Promise.all([
@@ -119,6 +160,8 @@ onMounted(async () => {
     }
   } catch {
     /* composer degrades to plain input */
+  } finally {
+    loadingSelectors.value = false
   }
 })
 
@@ -127,13 +170,17 @@ onBeforeUnmount(() => {
   window.removeEventListener('mousemove', onMove)
   window.removeEventListener('mouseup', onUp)
   window.removeEventListener('keydown', onGlobalKey)
+  document.removeEventListener('selectionchange', onSelectionChange)
 })
 
-watch(sessionId, (id) => {
-  if (id) {
-    sessionBusy.value = false
-    loadMessages(id)
-  }
+watch([projectId, sessionId], ([, id]) => {
+  if (!id) return
+  sessionBusy.value = false
+  statusDetail.value = null
+  quote.value = null
+  loadMessages(id)
+  void replayStatus(id)
+  void loadRelations(id)
 })
 
 watch(
@@ -170,14 +217,27 @@ function onEvent(event: OpencodeEvent) {
       break
     case 'session.status':
       if (props.sessionID === sessionId.value) {
-        sessionBusy.value = (props.status as SessionStatus).type !== 'idle'
+        const status = props.status as SessionStatus
+        sessionBusy.value = status.type !== 'idle'
+        statusDetail.value = status.type === 'retry' ? status.message : null
       }
       break
     case 'session.idle':
-      if (props.sessionID === sessionId.value) sessionBusy.value = false
+      if (props.sessionID === sessionId.value) {
+        sessionBusy.value = false
+        statusDetail.value = null
+        // Reconcile once the turn settles — catches anything events missed.
+        void loadMessages(sessionId.value)
+      }
+      break
+    case 'session.created':
+      if ((props.info as SessionInfo).parentID === sessionId.value) {
+        children.value = [...children.value, props.info as SessionInfo]
+      }
       break
     case 'session.updated':
       sessions.value = sessions.value.map((s) => (s.id === props.info.id ? (props.info as SessionInfo) : s))
+      children.value = children.value.map((s) => (s.id === props.info.id ? (props.info as SessionInfo) : s))
       break
     case 'session.deleted':
       sessions.value = sessions.value.filter((s) => s.id !== props.info.id)
@@ -227,29 +287,23 @@ function onGlobalKey(e: KeyboardEvent) {
   }
 }
 
-async function refreshSessions() {
-  loadingSessions.value = true
-  try {
-    const [list, projectIds] = await Promise.all([
-      client!.session.list(),
-      fetchProjectSessionIds(projectId.value),
-    ])
-    sessions.value = unwrap<SessionInfo[]>(list).filter((s) => projectIds.has(s.id))
-    connectError.value = null
-  } catch {
-    connectError.value = OPENCODE_CONNECT_ERROR
-  } finally {
-    loadingSessions.value = false
-  }
-}
-
 async function loadMessages(id: string) {
   loadingMessages.value = messages.value.length === 0
   try {
-    const res = await client!.session.messages({path: {id}})
-    const list = unwrap<ChatMessage[]>(res)
+    const [res, info] = await Promise.all([
+      client!.session.messages({path: {id}}),
+      client!.session.get({path: {id}}),
+    ])
+    let list = unwrap<ChatMessage[]>(res)
     if (!Array.isArray(list)) throw new Error('Session not found')
+    // A revert marker hides everything from that message on (until unrevert).
+    const revertID = unwrap<SessionInfo & {revert?: {messageID: string}}>(info)?.revert?.messageID
+    if (revertID) {
+      const cut = list.findIndex((m) => m.info.id === revertID)
+      if (cut !== -1) list = list.slice(0, cut)
+    }
     messages.value = list
+    syncSelectorsToSession(list)
   } catch {
     messages.value = []
     // A dead or foreign session link lands on the project home, like Suna.
@@ -259,59 +313,133 @@ async function loadMessages(id: string) {
   }
 }
 
-async function createSession() {
-  if (creating.value) return
-  creating.value = true
-  let created: SessionInfo | null = null
-  try {
-    created = unwrap<SessionInfo>(await client!.session.create({body: {title: 'New session'}}))
-  } catch {
-    connectError.value = OPENCODE_CONNECT_ERROR
-    creating.value = false
-    return
+/** A session is bound to one agent/model — reflect what it actually ran with. */
+function syncSelectorsToSession(list: ChatMessage[]) {
+  const latest = [...list].reverse().find((m) => m.info.role === 'assistant')
+  if (!latest) return
+  if (latest.info.providerID && latest.info.modelID) {
+    selectedModel.value = `${latest.info.providerID}/${latest.info.modelID}`
   }
+  if (latest.info.agent) selectedAgent.value = latest.info.agent
+}
+
+/** Replay the session's live state on open: if the agent is still mid-turn
+ *  (thinking, running tools), the UI shows it immediately — the message
+ *  history holds the in-flight parts and the status map holds busy/retry. */
+async function replayStatus(id: string) {
   try {
-    await registerProjectSession(projectId.value, created.id)
-    sessions.value = [created, ...sessions.value]
-    await navigateTo(`/projects/${projectId.value}/sessions/${created.id}`)
+    const statuses = await fetchSessionStatuses(client!)
+    const status = statuses[id]
+    sessionBusy.value = !!status && status.type !== 'idle'
+    statusDetail.value = status?.type === 'retry' ? status.message : null
   } catch {
-    toast.error('Failed to link the session to this project')
-  } finally {
-    creating.value = false
+    /* status is best-effort — events keep it current from here */
   }
 }
 
-async function deleteSession(id: string) {
+/** Sub-session links: children spawned from here, and our parent if any. */
+async function loadRelations(id: string) {
+  children.value = []
+  parent.value = null
   try {
-    await client!.session.delete({path: {id}})
+    children.value = unwrap<SessionInfo[]>(await client!.session.children({path: {id}}))
+    const self = unwrap<SessionInfo>(await client!.session.get({path: {id}}))
+    if (self?.parentID) {
+      parent.value = unwrap<SessionInfo>(await client!.session.get({path: {id: self.parentID}}))
+    }
   } catch {
-    connectError.value = OPENCODE_CONNECT_ERROR
-    return
-  }
-  try {
-    await unregisterProjectSession(projectId.value, id)
-  } catch {
-    toast.error('Failed to unlink the session from this project')
-  }
-  sessions.value = sessions.value.filter((s) => s.id !== id)
-  if (id === sessionId.value) {
-    await navigateTo(`/projects/${projectId.value}`)
+    /* relations are decorative — the thread still works without them */
   }
 }
 
-/** Shared dispatch: optimistic user message, then the prompt call. The reply
- *  streams in through onEvent; the final reload reconciles any missed events
- *  (the call resolves when the turn completes). */
+/** Roll the session back to the state before a user message — undoable. */
+async function rewindTo(messageID: string) {
+  try {
+    await client!.session.revert({path: {id: sessionId.value}, body: {messageID}})
+    await loadMessages(sessionId.value)
+    toast('Session rewound', {
+      action: {
+        label: 'Undo',
+        onClick: async () => {
+          try {
+            await client!.session.unrevert({path: {id: sessionId.value}})
+            await loadMessages(sessionId.value)
+          } catch {
+            toast.error('Failed to undo the rewind')
+          }
+        },
+      },
+    })
+  } catch {
+    toast.error('Failed to rewind the session')
+  }
+}
+
+/** Branch a new session that keeps history through this turn. The server
+ *  copies everything *before* the anchor, so anchor at the next user message —
+ *  or copy everything when forking from the latest turn. */
+async function forkFrom(messageID: string) {
+  const index = messages.value.findIndex((m) => m.info.id === messageID)
+  const nextUser = index === -1
+    ? undefined
+    : messages.value.slice(index + 1).find((m) => m.info.role === 'user')
+  try {
+    const forked = unwrap<SessionInfo>(
+      await client!.session.fork({
+        path: {id: sessionId.value},
+        body: nextUser ? {messageID: nextUser.info.id} : {},
+      }),
+    )
+    await registerProjectSession(projectId.value, forked.id)
+    sessionsStore.add(forked)
+    toast.success('Forked into a new session')
+    await navigateTo(`/projects/${projectId.value}/sessions/${forked.id}`)
+  } catch {
+    toast.error('Failed to fork the session')
+  }
+}
+
+// ── Quote selection — float a button over selected thread text ──────────────
+
+const selectionQuote = ref<{ x: number; y: number; text: string } | null>(null)
+
+function onSelectionChange() {
+  const selection = window.getSelection()
+  if (!selection || selection.isCollapsed) selectionQuote.value = null
+}
+
+function onThreadMouseUp() {
+  // Let the browser finalize the selection before reading it.
+  requestAnimationFrame(() => {
+    const selection = window.getSelection()
+    const text = selection?.toString().trim() ?? ''
+    if (!selection || selection.rangeCount === 0 || text.length < 3) return
+    const range = selection.getRangeAt(0)
+    if (!scrollRef.value?.contains(range.commonAncestorContainer)) return
+    const rect = range.getBoundingClientRect()
+    selectionQuote.value = {x: rect.left + rect.width / 2, y: rect.top, text: text.slice(0, 1000)}
+  })
+}
+
+function attachQuote() {
+  quote.value = selectionQuote.value?.text ?? null
+  selectionQuote.value = null
+  window.getSelection()?.removeAllRanges()
+}
+
+/** Shared dispatch: optimistic user message, then a fire-and-forget call. The
+ *  reply streams in through onEvent; the session.idle event reconciles. */
 async function dispatch(optimisticParts: ChatMessage['parts'], call: () => Promise<unknown>) {
   if (busy.value) return
   input.value = ''
   sending.value = true
+  sessionBusy.value = true
   messages.value = [...messages.value, {info: {id: `local-${Date.now()}`, role: 'user'}, parts: optimisticParts}]
   try {
     await call()
-    await loadMessages(sessionId.value)
   } catch {
     connectError.value = OPENCODE_CONNECT_ERROR
+    sessionBusy.value = false
   } finally {
     sending.value = false
   }
@@ -319,8 +447,9 @@ async function dispatch(optimisticParts: ChatMessage['parts'], call: () => Promi
 
 async function send(text: string, files: OutgoingFile[]) {
   const parts = [...filePartsFrom(files), ...(text ? [{type: 'text', text}] : [])]
+  // promptAsync returns as soon as the server accepts — streaming does the rest.
   await dispatch(parts, () =>
-    client!.session.prompt({
+    client!.session.promptAsync({
       path: {id: sessionId.value},
       body: {
         model: promptModel.value,
@@ -368,22 +497,12 @@ function selectSession(id: string) {
 </script>
 
 <template>
-  <ProjectShell
-      :project-id="projectId"
-      :sessions="sessions"
-      :active-session-id="sessionId"
-      :loading="loadingSessions"
-      :creating="creating"
-      @select="selectSession"
-      @create="createSession"
-      @delete="deleteSession"
-  >
-    <div class="flex h-full flex-col overflow-hidden bg-background">
-      <div v-if="connectError"
-           class="flex items-center gap-2 border-b border-border/60 bg-destructive/6 px-5 py-2.5 text-sm text-destructive">
-        <AlertCircleIcon class="size-4 shrink-0"/>
-        {{ connectError }}
-      </div>
+  <div class="flex h-full flex-col overflow-hidden bg-background">
+    <div v-if="connectError || sessionsStore.connectError"
+         class="flex items-center gap-2 border-b border-border/60 bg-destructive/6 px-5 py-2.5 text-sm text-destructive">
+      <AlertCircleIcon class="size-4 shrink-0"/>
+      {{ connectError ?? sessionsStore.connectError }}
+    </div>
 
       <div ref="dragRef" class="flex min-h-0 flex-1 overflow-hidden bg-background">
         <!-- Main content panel (chat) -->
@@ -396,15 +515,17 @@ function selectSession(id: string) {
               <SessionSiteHeader
                   :is-side-panel-open="panelOpen"
                   @toggle-side-panel="panelOpen = !panelOpen"
-                  @new-session="createSession"
-                  @delete="deleteSession(sessionId)"
+                  @new-session="sessionsStore.createBlank(projectId)"
+                  @delete="sessionsStore.remove(projectId, sessionId)"
               />
 
               <!-- Messages -->
               <div class="relative z-10 min-h-0 flex-1">
+                <ChatMinimap :items="minimapItems" :scroll-el="scrollRef" />
                 <div
                     ref="scrollRef"
                     class="relative h-full flex-1 overflow-y-auto bg-background px-4 py-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] scrollbar-none"
+                    @mouseup="onThreadMouseUp"
                 >
                   <div role="log" :class="cn('mx-auto w-full min-w-0 px-3 transition-[max-width] duration-300 ease-out sm:px-6', panelOpen ? 'max-w-4xl' : 'max-w-5xl')">
                     <!-- Initial-load skeleton: a user bubble and a reply, matching thread shapes. -->
@@ -421,21 +542,53 @@ function selectSession(id: string) {
                           v-for="(turn, i) in turns"
                           :key="turn.user?.info.id ?? i"
                           :class="i !== 0 && 'mt-12'"
+                          :data-turn-id="turn.user?.info.id"
                           :user="turn.user"
                           :assistant="turn.assistant"
                           :agents="agents"
                           :busy="busy && i === turns.length - 1"
+                          @fork="forkFrom"
+                          @rewind="rewindTo"
                       />
 
-                      <!-- Working indicator -->
+                      <!-- Working indicator: concrete activity when known, animation as fallback -->
                       <div v-if="busy" :class="cn('space-y-2', turns.length > 0 && 'mt-12')">
                         <div class="flex items-center gap-2 py-1 text-xs text-muted-foreground transition-colors relative">
                           <Logo variant="symbol" class="h-4 w-auto shrink-0 absolute -left-7 top-1"/>
-                          <AnimatedThinkingText />
+                          <span v-if="activity" class="truncate font-mono text-xs text-muted-foreground/80">{{ activity }}</span>
+                          <AnimatedThinkingText v-else />
                         </div>
                       </div>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              <!-- Sub-session relations: parent link and spawned children -->
+              <div
+                v-if="parent || children.length > 0"
+                :class="cn('relative z-10 mx-auto w-full shrink-0 px-2 pb-1.5 sm:px-4 transition-[max-width] duration-300 ease-out', !panelOpen ? 'max-w-256' : 'max-w-224')"
+              >
+                <div class="flex items-center gap-1.5 overflow-x-auto px-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] scrollbar-none">
+                  <button
+                    v-if="parent"
+                    type="button"
+                    class="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-border/60 bg-card px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+                    @click="selectSession(parent.id)"
+                  >
+                    <CornerLeftUp class="size-3" />
+                    <span class="max-w-48 truncate">{{ parent.title || 'Parent session' }}</span>
+                  </button>
+                  <button
+                    v-for="child in children"
+                    :key="child.id"
+                    type="button"
+                    class="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-border/60 bg-card px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+                    @click="selectSession(child.id)"
+                  >
+                    <GitBranch class="size-3" />
+                    <span class="max-w-48 truncate">{{ child.title || 'Sub-session' }}</span>
+                  </button>
                 </div>
               </div>
 
@@ -444,12 +597,14 @@ function selectSession(id: string) {
                   v-model="input"
                   v-model:model="selectedModel"
                   v-model:agent="selectedAgent"
+                  v-model:quote="quote"
                   :busy="busy"
                   :wide="!panelOpen"
                   :agents="agents"
                   :models="models"
                   :commands="commands"
                   :context="context"
+                  :loading-selectors="loadingSelectors"
                   autofocus
                   @send="send"
                   @command="runCommand"
@@ -468,6 +623,20 @@ function selectSession(id: string) {
           />
         </div>
 
+        <!-- Floating quote button over selected thread text -->
+        <Teleport to="body">
+          <button
+            v-if="selectionQuote"
+            type="button"
+            class="fixed z-50 inline-flex -translate-x-1/2 -translate-y-[calc(100%+6px)] cursor-pointer items-center gap-1.5 rounded-full border border-border/60 bg-popover px-2.5 py-1 text-xs font-medium text-foreground shadow-md animate-in fade-in-0 zoom-in-[0.97] duration-150 hover:bg-muted"
+            :style="{ left: `${selectionQuote.x}px`, top: `${selectionQuote.y}px` }"
+            @mousedown.prevent="attachQuote"
+          >
+            <TextQuote class="size-3" />
+            Quote in reply
+          </button>
+        </Teleport>
+
         <!-- Side panel — Actions / Browser / Files / Terminal -->
         <div v-if="panelOpen" class="relative min-w-0 flex-1 overflow-hidden bg-background">
           <div class="h-full bg-background pb-6 pl-1.5 pr-3 pt-3 sm:pr-4">
@@ -477,7 +646,6 @@ function selectSession(id: string) {
             </div>
           </div>
         </div>
-      </div>
     </div>
-  </ProjectShell>
+  </div>
 </template>

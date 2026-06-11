@@ -1,9 +1,9 @@
 import type { SessionPayload } from './session'
+import { ensureMachine } from './machines'
 
-const DEFAULT_UPSTREAM = process.env.OPENCODE_URL ?? 'http://localhost:4096'
-
-/** Per-tenant seam: today every user shares one OpenCode upstream; later this
- *  resolves the caller's own instance (per workspace, domain, or sandbox). */
-export function resolveOpencodeUpstream(_session: SessionPayload): string {
-  return DEFAULT_UPSTREAM
+/** Per-user seam: every user works on their own machine, so the proxy
+ *  resolves the caller → their machine's OpenCode upstream
+ *  (docs/ARCHITECTURE.md). */
+export function resolveOpencodeUpstream(session: SessionPayload): string {
+  return ensureMachine(session.userId).upstream_url
 }

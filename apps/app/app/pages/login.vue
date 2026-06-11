@@ -5,7 +5,6 @@ import {
   Button,
   Input,
   HoshiLoader,
-  cn,
   Tabs,
   TabsList,
   TabsTrigger,
@@ -15,7 +14,7 @@ import {
   InfoBanner
 } from '@hoshi/ui'
 
-definePageMeta({layout: false})
+definePageMeta({layout: 'auth'})
 
 type Mode = 'signin' | 'register'
 type Method = 'magic' | 'password'
@@ -35,11 +34,6 @@ const pending = ref(false)
 function resetState() {
   error.value = null
   info.value = null
-}
-
-function switchMode(m: Mode) {
-  mode.value = m
-  resetState()
 }
 
 function toggleMethod() {
@@ -95,7 +89,7 @@ async function onSubmit() {
 </script>
 
 <template>
-  <AuthShell>
+  <div>
 
     <Logo class="mb-8"/>
 
@@ -168,7 +162,7 @@ async function onSubmit() {
             type="button"
             disabled
             title="Google sign-in isn't wired up in this build"
-            class="flex h-11 w-full cursor-not-allowed items-center justify-center gap-2 rounded-full border border-foreground/8 bg-foreground/[0.03] text-sm text-foreground/70 transition-colors"
+            class="flex h-11 w-full cursor-not-allowed items-center justify-center gap-2 rounded-full border border-foreground/8 bg-foreground/3 text-sm text-foreground/70 transition-colors"
         >
           <svg class="size-4" viewBox="0 0 24 24" aria-hidden="true">
             <path fill="#4285F4"
@@ -269,7 +263,7 @@ async function onSubmit() {
             type="button"
             disabled
             title="Google sign-in isn't wired up in this build"
-            class="flex h-11 w-full cursor-not-allowed items-center justify-center gap-2 rounded-full border border-foreground/8 bg-foreground/[0.03] text-sm text-foreground/70 transition-colors"
+            class="flex h-11 w-full cursor-not-allowed items-center justify-center gap-2 rounded-full border border-foreground/8 bg-foreground/3 text-sm text-foreground/70 transition-colors"
         >
           <svg class="size-4" viewBox="0 0 24 24" aria-hidden="true">
             <path fill="#4285F4"
@@ -286,5 +280,5 @@ async function onSubmit() {
 
       </TabsContent>
     </Tabs>
-  </AuthShell>
+  </div>
 </template>

@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs'
 import { addMember, createOrganization, createUser, findUserByEmail, personalOrgName } from '../../utils/db'
+import { ensureMachine } from '../../utils/machines'
 import { createSessionCookie } from '../../utils/session'
 
 export default defineEventHandler(async (event) => {
@@ -21,6 +22,8 @@ export default defineEventHandler(async (event) => {
 
   const organization = createOrganization(personalOrgName(user.name, user.email))
   addMember(organization.id, user.id, 'owner')
+  // Provisioning moment: every account gets its own OpenCode machine.
+  ensureMachine(user.id)
 
   await createSessionCookie(event, { userId: user.id, email: user.email })
   return { user: { id: user.id, email: user.email, name: user.name } }

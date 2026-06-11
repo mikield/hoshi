@@ -9,6 +9,7 @@ export default defineEventHandler(async (event) => {
   if (typeof name !== 'string' || !name.trim() || name.trim().length > 120) {
     throw createError({ statusCode: 400, statusMessage: 'Enter a project name (1–120 characters).' })
   }
-  const { session } = await requireMembership(event, orgId)
+  // Projects belong to the organization — only its admins create them.
+  const { session } = await requireMembership(event, orgId, 'admin')
   return { project: createProject(orgId, session.userId, name.trim()) }
 })

@@ -6,6 +6,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
+  SidebarFlyout,
   Skeleton,
   cn,
 } from '@hoshi/ui'
@@ -116,14 +117,42 @@ function onKeydown(e: KeyboardEvent) {
             <Loader2 v-if="creating" class="h-4 w-4 animate-spin" />
             <SquarePen v-else class="h-4 w-4" />
           </button>
-          <button
-            type="button"
-            class="flex w-full cursor-pointer items-center justify-center rounded-lg py-2 text-sidebar-foreground transition-colors duration-150 ease-out hover:bg-sidebar-accent"
-            title="Sessions"
-            @click="collapsed = false"
-          >
-            <ListTree class="h-4 w-4" />
-          </button>
+          <!-- Hovering shows a quick-switch flyout; clicking expands the rail. -->
+          <SidebarFlyout label="Sessions">
+            <button
+              type="button"
+              class="flex w-full cursor-pointer items-center justify-center rounded-lg py-2 text-sidebar-foreground transition-colors duration-150 ease-out hover:bg-sidebar-accent"
+              aria-label="Sessions"
+              @click="collapsed = false"
+            >
+              <ListTree class="h-4 w-4" />
+            </button>
+            <template #content>
+              <div class="overflow-y-auto py-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] scrollbar-none">
+                <div v-if="rootSessions.length === 0" class="px-3 py-8 text-center text-xs text-muted-foreground">
+                  No sessions yet.
+                </div>
+                <button
+                  v-for="s in rootSessions"
+                  :key="s.id"
+                  type="button"
+                  :class="cn(
+                    'flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-xs transition-colors duration-100',
+                    s.id === activeSessionId
+                      ? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
+                      : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground',
+                  )"
+                  @click="emit('select', s.id)"
+                >
+                  <span :class="cn('block h-1.5 w-1.5 shrink-0 rounded-full', s.id === activeSessionId ? 'animate-pulse bg-emerald-500' : 'bg-muted-foreground/50')" />
+                  <span class="flex-1 truncate text-left">{{ s.title || s.id.slice(0, 14) }}</span>
+                  <span class="shrink-0 text-xs tabular-nums text-muted-foreground/50">
+                    {{ shortRelative(s.time?.updated ?? s.time?.created, now) }}
+                  </span>
+                </button>
+              </div>
+            </template>
+          </SidebarFlyout>
         </div>
         <!-- Customize pinned to the bottom of the rail -->
         <div class="mt-auto w-full space-y-0.5">

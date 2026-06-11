@@ -214,7 +214,10 @@ export { default as SelectSeparator } from "./components/SelectSeparator.vue"
 export { default as SelectScrollUpButton } from "./components/SelectScrollUpButton.vue"
 export { default as SelectScrollDownButton } from "./components/SelectScrollDownButton.vue"
 
+export { default as ChatMinimap } from "./components/ChatMinimap.vue"
+export { default as ScrollRow } from "./components/ScrollRow.vue"
 export { default as Separator } from "./components/Separator.vue"
+export { default as SidebarFlyout } from "./components/SidebarFlyout.vue"
 export { default as Skeleton } from "./components/Skeleton.vue"
 
 export { default as Slider } from "./components/Slider.vue"

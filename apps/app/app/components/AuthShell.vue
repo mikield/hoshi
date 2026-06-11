@@ -3,12 +3,14 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { ChevronDown } from 'lucide-vue-next'
 import { Logo, WallpaperBackground } from '@hoshi/ui'
 
-defineProps<{
+const props = defineProps<{
   wallpaperId?: string
+  /** 'lock' starts on the clock screen (used by the inactivity lock). */
+  initialPhase?: 'lock' | 'form'
 }>()
 
 // ── Phase management ────────────────────────────────────────────────────
-const phase = ref<'lock' | 'form'>('lock')
+const phase = ref<'lock' | 'form'>(props.initialPhase ?? 'form')
 
 function openForm() { phase.value = 'form' }
 function closeForm() { phase.value = 'lock' }

@@ -4,12 +4,12 @@ import type { Component } from 'vue'
 import { cn } from '@hoshi/ui'
 import {
   Bot,
-  Container,
   FolderOpen,
   GitPullRequest,
   KeyRound,
   MessageSquare,
   Plug,
+  Server,
   Settings,
   SlidersHorizontal,
   Sparkles,
@@ -37,6 +37,21 @@ import { useCustomize, type CustomizeSection } from '~/composables/useCustomize'
 const { open, section } = useCustomize()
 const route = useRoute()
 const { projects } = storeToRefs(useProjectsStore())
+const machineStore = useMachineStore()
+const { machine } = storeToRefs(machineStore)
+
+/** Status dot for the header chip — green ready, pulsing amber while
+ *  provisioning, red when unreachable. */
+const machineDotClass = computed(() => {
+  switch (machine.value?.status) {
+    case 'ready':
+      return 'bg-emerald-500'
+    case 'provisioning':
+      return 'animate-pulse bg-amber-500'
+    default:
+      return 'bg-destructive'
+  }
+})
 
 const projectId = computed(() => (route.params.id as string | undefined) ?? null)
 const projectName = computed(() => projects.value.find((p) => p.id === projectId.value)?.name ?? null)
@@ -76,7 +91,7 @@ const NAV_GROUPS: { label: string; items: RailItem[] }[] = [
 const FOOTER_ITEMS: RailItem[] = [
   { id: 'changes', label: 'Changes', icon: GitPullRequest },
   { id: 'files', label: 'Files', icon: FolderOpen },
-  { id: 'sandbox', label: 'Sandbox', icon: Container },
+  { id: 'machine', label: 'Machine', icon: Server },
   { id: 'dev', label: 'Dev', icon: Terminal },
   { id: 'members', label: 'Members', icon: Users },
   { id: 'settings', label: 'Settings', icon: Settings },
@@ -91,7 +106,9 @@ const mcpServers = ref<McpServerInfo[]>([])
 let loadedOnce = false
 
 watch(open, (isOpen) => {
-  if (isOpen && !loadedOnce) void loadAll()
+  if (!isOpen) return
+  void machineStore.load()
+  if (!loadedOnce) void loadAll()
 })
 
 async function loadAll() {
@@ -134,6 +151,17 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           <SlidersHorizontal class="size-4 shrink-0 text-muted-foreground" />
           <span class="text-sm font-semibold text-foreground">Customize</span>
           <span v-if="projectName" class="truncate text-sm text-muted-foreground">· {{ projectName }}</span>
+          <!-- Customize configures the user's machine — keep that visible. -->
+          <button
+            v-if="machine"
+            type="button"
+            class="ml-1 inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-border/60 bg-muted/30 px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+            title="Your machine — everything here applies to it"
+            @click="section = 'machine'"
+          >
+            <span :class="cn('size-1.5 rounded-full', machineDotClass)" />
+            <span class="max-w-[160px] truncate">{{ machine.name }}</span>
+          </button>
         </div>
         <button
           type="button"
@@ -189,9 +217,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
         <!-- Section content -->
         <main class="min-h-0 min-w-0 flex-1 overflow-hidden bg-background">
-          <CustomizeAgentsView v-if="section === 'agents'" :agents="agents" />
+          <CustomizeAgentsView v-if="section === 'agents'" :agents="agents" @refresh="loadAll" />
           <CustomizeSkillsView v-else-if="section === 'skills'" :skills="skills" />
-          <CustomizeCommandsView v-else-if="section === 'commands'" :commands="commands" />
+          <CustomizeCommandsView v-else-if="section === 'commands'" :commands="commands" @refresh="loadAll" />
           <CustomizeConnectorsView v-else-if="section === 'connectors'" :servers="mcpServers" />
           <CustomizeSecretsView v-else-if="section === 'secrets'" />
           <CustomizeChannelsView v-else-if="section === 'channels'" />
@@ -199,7 +227,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           <CustomizeWebhooksView v-else-if="section === 'webhooks'" />
           <CustomizeChangesView v-else-if="section === 'changes'" />
           <CustomizeFilesView v-else-if="section === 'files'" />
-          <CustomizeSandboxView v-else-if="section === 'sandbox'" />
+          <CustomizeMachineView v-else-if="section === 'machine'" />
           <CustomizeDevView v-else-if="section === 'dev'" />
           <CustomizeMembersView v-else-if="section === 'members'" />
           <CustomizeSettingsView v-else-if="section === 'settings' && projectId" :project-id="projectId" />

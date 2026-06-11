@@ -4,13 +4,14 @@ import {
   AgentSelector,
   Button,
   ModelSelector,
+  Skeleton,
   TokenProgress,
   Tooltip,
   TooltipTrigger,
   TooltipContent,
   cn,
 } from '@hoshi/ui'
-import { ArrowUp, FileText, Paperclip, Terminal, X } from 'lucide-vue-next'
+import { ArrowUp, FileText, Paperclip, Terminal, TextQuote, X } from 'lucide-vue-next'
 import { segmentChatText, hasRichSegments } from '~/composables/useChatSegments'
 import type { AgentOption, CommandOption, ModelOption, OutgoingFile } from '~/composables/useOpencode'
 
@@ -25,6 +26,8 @@ const props = defineProps<{
   commands?: CommandOption[]
   /** Context-window usage shown as a ring next to the send button. */
   context?: { used: number; limit: number } | null
+  /** Skeleton pills while the agent/model lists are still loading. */
+  loadingSelectors?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -35,6 +38,8 @@ const emit = defineEmits<{
 const text = defineModel<string>({ default: '' })
 const selectedModel = defineModel<string | null>('model', { default: null })
 const selectedAgent = defineModel<string | null>('agent', { default: null })
+/** A quoted snippet (from selecting thread text) carried into the next message. */
+const quote = defineModel<string | null>('quote', { default: null })
 
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 const highlightRef = ref<HTMLDivElement | null>(null)
@@ -195,8 +200,12 @@ function submit() {
     emit('command', stagedCommand.value.name, text.value.trim())
     stagedCommand.value = null
   } else {
-    emit('send', text.value.trim(), attachments.value)
+    const quoted = quote.value
+      ? `${quote.value.split('\n').map((line) => `> ${line}`).join('\n')}\n\n`
+      : ''
+    emit('send', `${quoted}${text.value.trim()}`.trim(), attachments.value)
     attachments.value = []
+    quote.value = null
   }
   mentionQuery.value = null
 }
@@ -329,6 +338,20 @@ defineExpose({ focus: () => textareaRef.value?.focus() })
           <span v-if="stagedCommand.description" class="min-w-0 truncate text-xs text-muted-foreground">{{ stagedCommand.description }}</span>
         </div>
 
+        <!-- Quoted snippet carried into the next message -->
+        <div v-if="quote" class="mx-3 mt-3 flex items-start gap-2 rounded-2xl border border-primary/10 bg-primary/5 px-3 py-1.5">
+          <TextQuote class="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+          <p class="min-w-0 flex-1 truncate text-xs leading-relaxed text-muted-foreground">{{ quote }}</p>
+          <button
+            type="button"
+            aria-label="Remove quote"
+            class="cursor-pointer text-muted-foreground transition-colors hover:text-foreground"
+            @click="quote = null"
+          >
+            <X class="size-3" />
+          </button>
+        </div>
+
         <!-- Attachment chips -->
         <div v-if="attachments.length > 0" class="flex flex-wrap gap-2 px-3 pt-3">
           <div
@@ -409,8 +432,14 @@ defineExpose({ focus: () => textareaRef.value?.focus() })
               </TooltipTrigger>
               <TooltipContent side="top">Attach files</TooltipContent>
             </Tooltip>
-            <AgentSelector v-if="agents?.length" v-model="selectedAgent" :agents="agents" />
-            <ModelSelector v-if="models?.length" v-model="selectedModel" :models="models" />
+            <template v-if="loadingSelectors">
+              <Skeleton class="ml-1 h-7 w-28 rounded-full" />
+              <Skeleton class="ml-1.5 h-7 w-32 rounded-full" />
+            </template>
+            <template v-else>
+              <AgentSelector v-if="agents?.length" v-model="selectedAgent" :agents="agents" />
+              <ModelSelector v-if="models?.length" v-model="selectedModel" :models="models" />
+            </template>
           </div>
 
           <div class="flex shrink-0 items-center gap-0">

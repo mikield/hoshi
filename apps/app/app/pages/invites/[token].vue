@@ -11,6 +11,8 @@ interface InvitePreview {
   invitedBy: string
 }
 
+definePageMeta({ layout: 'auth' })
+
 const route = useRoute()
 const token = route.params.token as string
 const api = useApi()
@@ -62,7 +64,7 @@ function signIn() {
 </script>
 
 <template>
-  <AuthShell>
+  <div>
     <Logo class="mb-8" />
 
     <div v-if="loading" class="flex justify-center py-10"><HoshiLoader class="size-5" /></div>
@@ -103,5 +105,5 @@ function signIn() {
         </template>
       </div>
     </template>
-  </AuthShell>
+  </div>
 </template>

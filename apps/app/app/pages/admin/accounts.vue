@@ -40,6 +40,8 @@ const deleting = ref<AdminUser | null>(null)
 
 const admins = computed(() => users.value.filter((u) => u.is_admin).length)
 const disabledCount = computed(() => users.value.filter((u) => u.disabled).length)
+const anyDisabled = computed(() => disabledCount.value !== 0)
+const showOrgs = computed(() => !loading.value && orgs.value.length !== 0)
 
 async function load() {
   fetching.value = true
@@ -99,6 +101,10 @@ async function confirmDelete() {
   }
 }
 
+function onDeleteDialogOpen(open: boolean) {
+  if (!open) deleting.value = null
+}
+
 function formatDate(value: string): string {
   return new Date(`${value.replace(' ', 'T')}Z`).toLocaleDateString('en-US', {
     month: 'short',
@@ -126,7 +132,7 @@ function formatDate(value: string): string {
       <div v-else class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatPill label="Total" :value="users.length.toLocaleString()" :hint="query ? 'Matches current search' : 'All accounts'" />
         <StatPill label="Admins" :value="admins" tone="success" hint="Instance administrators" />
-        <StatPill label="Disabled" :value="disabledCount" :tone="disabledCount > 0 ? 'warning' : 'success'" :hint="disabledCount > 0 ? 'Locked out' : 'All clear'" />
+        <StatPill label="Disabled" :value="disabledCount" :tone="anyDisabled ? 'warning' : 'success'" :hint="anyDisabled ? 'Locked out' : 'All clear'" />
         <StatPill label="Organizations" :value="orgs.length" hint="Across the instance" />
       </div>
 
@@ -207,7 +213,7 @@ function formatDate(value: string): string {
       </div>
 
       <!-- Organizations table -->
-      <div v-if="!loading && orgs.length > 0" class="overflow-hidden rounded-2xl border border-border/60">
+      <div v-if="showOrgs" class="overflow-hidden rounded-2xl border border-border/60">
         <table class="w-full text-sm">
           <thead>
             <tr class="border-b border-border/60 bg-muted/30 text-left text-xs text-muted-foreground">
@@ -240,7 +246,7 @@ function formatDate(value: string): string {
       confirm-label="Delete account"
       confirm-variant="destructive"
       @confirm="confirmDelete"
-      @update:open="(open: boolean) => { if (!open) deleting = null }"
+      @update:open="onDeleteDialogOpen"
     >
       <template #description>
         Permanently removes {{ deleting?.email }}, their memberships, and the projects they created. This cannot be undone.

@@ -87,6 +87,42 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     PRIMARY KEY (project_id, oc_session_id)
   );
+
+  CREATE TABLE IF NOT EXISTS machines (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    upstream_url TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'ready' CHECK (status IN ('provisioning', 'ready', 'error', 'offline')),
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS schedules (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+    name TEXT NOT NULL,
+    prompt TEXT NOT NULL,
+    interval_minutes INTEGER NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    last_run_at TEXT,
+    next_run_at TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS webhooks (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+    name TEXT NOT NULL,
+    token TEXT UNIQUE NOT NULL,
+    prompt TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    hits INTEGER NOT NULL DEFAULT 0,
+    last_triggered_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `)
 
 // ── One-time migration: admin & disabled flags on users ─────────────────────
@@ -540,4 +576,191 @@ export function removeProjectSession(projectId: string, ocSessionId: string): vo
     projectId,
     ocSessionId,
   )
+}
+
+// ── Machines ─────────────────────────────────────────────────────────────────
+// Every user has their own cloud machine running OpenCode (docs/ARCHITECTURE.md).
+
+export type MachineStatus = 'provisioning' | 'ready' | 'error' | 'offline'
+
+export interface MachineRow {
+  id: string
+  user_id: number
+  name: string
+  upstream_url: string
+  status: MachineStatus
+  created_at: string
+  updated_at: string
+}
+
+export function getMachineForUser(userId: number): MachineRow | undefined {
+  return db.prepare('SELECT * FROM machines WHERE user_id = ?').get(userId) as MachineRow | undefined
+}
+
+export function createMachine(userId: number, name: string, upstreamUrl: string): MachineRow {
+  const id = crypto.randomUUID()
+  db.prepare('INSERT INTO machines (id, user_id, name, upstream_url) VALUES (?, ?, ?, ?)').run(
+    id,
+    userId,
+    name,
+    upstreamUrl,
+  )
+  return getMachineForUser(userId)!
+}
+
+export function updateMachine(
+  userId: number,
+  fields: Partial<Pick<MachineRow, 'name' | 'upstream_url' | 'status'>>,
+): MachineRow | undefined {
+  const machine = getMachineForUser(userId)
+  if (!machine) return undefined
+  db.prepare(
+    "UPDATE machines SET name = ?, upstream_url = ?, status = ?, updated_at = datetime('now') WHERE user_id = ?",
+  ).run(
+    fields.name ?? machine.name,
+    fields.upstream_url ?? machine.upstream_url,
+    fields.status ?? machine.status,
+    userId,
+  )
+  return getMachineForUser(userId)
+}
+
+// ── Schedules ────────────────────────────────────────────────────────────────
+// Recurring prompts fired into fresh sessions on the owner's machine.
+
+export interface ScheduleRow {
+  id: string
+  user_id: number
+  project_id: string | null
+  name: string
+  prompt: string
+  interval_minutes: number
+  enabled: number
+  last_run_at: string | null
+  next_run_at: string
+  created_at: string
+}
+
+export function listSchedulesForUser(userId: number): ScheduleRow[] {
+  return db
+    .prepare('SELECT * FROM schedules WHERE user_id = ? ORDER BY created_at ASC')
+    .all(userId) as ScheduleRow[]
+}
+
+export function findSchedule(id: string): ScheduleRow | undefined {
+  return db.prepare('SELECT * FROM schedules WHERE id = ?').get(id) as ScheduleRow | undefined
+}
+
+export function createSchedule(
+  userId: number,
+  fields: { name: string; prompt: string; intervalMinutes: number; projectId: string | null },
+): ScheduleRow {
+  const id = crypto.randomUUID()
+  db.prepare(
+    `INSERT INTO schedules (id, user_id, project_id, name, prompt, interval_minutes, next_run_at)
+     VALUES (?, ?, ?, ?, ?, ?, datetime('now', '+' || ? || ' minutes'))`,
+  ).run(id, userId, fields.projectId, fields.name, fields.prompt, fields.intervalMinutes, fields.intervalMinutes)
+  return findSchedule(id)!
+}
+
+export function updateSchedule(
+  id: string,
+  fields: Partial<{ name: string; prompt: string; interval_minutes: number; enabled: number }>,
+): ScheduleRow | undefined {
+  const schedule = findSchedule(id)
+  if (!schedule) return undefined
+  db.prepare(
+    'UPDATE schedules SET name = ?, prompt = ?, interval_minutes = ?, enabled = ? WHERE id = ?',
+  ).run(
+    fields.name ?? schedule.name,
+    fields.prompt ?? schedule.prompt,
+    fields.interval_minutes ?? schedule.interval_minutes,
+    fields.enabled ?? schedule.enabled,
+    id,
+  )
+  return findSchedule(id)
+}
+
+export function deleteSchedule(id: string): boolean {
+  return db.prepare('DELETE FROM schedules WHERE id = ?').run(id).changes > 0
+}
+
+export function listDueSchedules(): ScheduleRow[] {
+  return db
+    .prepare("SELECT * FROM schedules WHERE enabled = 1 AND next_run_at <= datetime('now')")
+    .all() as ScheduleRow[]
+}
+
+/** Stamp a run and roll next_run_at forward from now (not from the missed
+ *  slot, so a backlog never causes a burst of catch-up runs). */
+export function markScheduleRun(id: string, intervalMinutes: number): void {
+  db.prepare(
+    `UPDATE schedules SET last_run_at = datetime('now'),
+     next_run_at = datetime('now', '+' || ? || ' minutes') WHERE id = ?`,
+  ).run(intervalMinutes, id)
+}
+
+// ── Webhooks ─────────────────────────────────────────────────────────────────
+// Inbound trigger URLs: POST /hooks/<token> starts a session on the owner's machine.
+
+export interface WebhookRow {
+  id: string
+  user_id: number
+  project_id: string | null
+  name: string
+  token: string
+  prompt: string
+  enabled: number
+  hits: number
+  last_triggered_at: string | null
+  created_at: string
+}
+
+export function listWebhooksForUser(userId: number): WebhookRow[] {
+  return db
+    .prepare('SELECT * FROM webhooks WHERE user_id = ? ORDER BY created_at ASC')
+    .all(userId) as WebhookRow[]
+}
+
+export function findWebhook(id: string): WebhookRow | undefined {
+  return db.prepare('SELECT * FROM webhooks WHERE id = ?').get(id) as WebhookRow | undefined
+}
+
+export function findWebhookByToken(token: string): WebhookRow | undefined {
+  return db.prepare('SELECT * FROM webhooks WHERE token = ?').get(token) as WebhookRow | undefined
+}
+
+export function createWebhook(
+  userId: number,
+  fields: { name: string; prompt: string; projectId: string | null },
+): WebhookRow {
+  const id = crypto.randomUUID()
+  const token = `${crypto.randomUUID()}${crypto.randomUUID()}`.replaceAll('-', '')
+  db.prepare(
+    'INSERT INTO webhooks (id, user_id, project_id, name, token, prompt) VALUES (?, ?, ?, ?, ?, ?)',
+  ).run(id, userId, fields.projectId, fields.name, token, fields.prompt)
+  return findWebhook(id)!
+}
+
+export function updateWebhook(
+  id: string,
+  fields: Partial<{ name: string; prompt: string; enabled: number }>,
+): WebhookRow | undefined {
+  const webhook = findWebhook(id)
+  if (!webhook) return undefined
+  db.prepare('UPDATE webhooks SET name = ?, prompt = ?, enabled = ? WHERE id = ?').run(
+    fields.name ?? webhook.name,
+    fields.prompt ?? webhook.prompt,
+    fields.enabled ?? webhook.enabled,
+    id,
+  )
+  return findWebhook(id)
+}
+
+export function deleteWebhook(id: string): boolean {
+  return db.prepare('DELETE FROM webhooks WHERE id = ?').run(id).changes > 0
+}
+
+export function recordWebhookHit(id: string): void {
+  db.prepare("UPDATE webhooks SET hits = hits + 1, last_triggered_at = datetime('now') WHERE id = ?").run(id)
 }

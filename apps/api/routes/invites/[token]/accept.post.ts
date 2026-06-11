@@ -1,5 +1,6 @@
 import { addMember, deleteInvite, findInvite, isInviteExpired } from '../../../utils/db'
 import { requireAuth } from '../../../utils/auth'
+import { ensureMachine } from '../../../utils/machines'
 
 export default defineEventHandler(async (event) => {
   const session = await requireAuth(event)
@@ -18,5 +19,7 @@ export default defineEventHandler(async (event) => {
 
   addMember(invite.org_id, session.userId, invite.role)
   deleteInvite(token)
+  // Provisioning moment: joining an org guarantees the member a machine.
+  ensureMachine(session.userId)
   return { ok: true, orgId: invite.org_id }
 })

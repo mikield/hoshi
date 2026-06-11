@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import { Button, Divider, HoshiLoader, InfoBanner, Input, Logo } from '@hoshi/ui'
 import { ArrowLeft, MailCheck, AlertCircle } from 'lucide-vue-next'
 
-definePageMeta({ layout: false })
+definePageMeta({ layout: 'auth' })
 
 const email = ref('')
 const pending = ref(false)
@@ -33,7 +33,7 @@ async function onSubmit() {
 </script>
 
 <template>
-  <AuthShell>
+  <div>
     <Logo class="mb-8" />
 
     <Divider>Reset your password</Divider>
@@ -80,5 +80,5 @@ async function onSubmit() {
         Back to sign in
       </NuxtLink>
     </div>
-  </AuthShell>
+  </div>
 </template>

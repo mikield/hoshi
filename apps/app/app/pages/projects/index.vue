@@ -24,6 +24,10 @@ const projectsStore = useProjectsStore()
 const { projects, loading, loadError, now } = storeToRefs(projectsStore)
 const { load, create, rename, remove } = projectsStore
 
+// Projects belong to the organization — only its admins manage them.
+const { current: currentOrg } = storeToRefs(useOrganizationsStore())
+const canManage = computed(() => currentOrg.value?.role === 'owner' || currentOrg.value?.role === 'admin')
+
 const query = ref('')
 const createOpen = ref(false)
 const projectToRename = ref<Project | null>(null)
@@ -86,6 +90,14 @@ async function confirmDelete() {
     toast.error('Failed to delete project')
   }
 }
+
+function onRenameDialogOpen(open: boolean) {
+  if (!open) projectToRename.value = null
+}
+
+function onDeleteDialogOpen(open: boolean) {
+  if (!open) projectToDelete.value = null
+}
 </script>
 
 <template>
@@ -103,7 +115,7 @@ async function confirmDelete() {
               <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input v-model="query" placeholder="Search projects" class="h-9 pl-9 text-sm" />
             </div>
-            <Button class="gap-1.5" @click="createOpen = true">
+            <Button v-if="canManage" class="gap-1.5" @click="createOpen = true">
               <Plus class="size-4" />
               New project
             </Button>
@@ -124,8 +136,10 @@ async function confirmDelete() {
           :icon="FolderPlus"
           title="No projects yet"
         >
-          <template #description>Create your first project to start chatting with your local OpenCode server.</template>
-          <template #action><Button @click="createOpen = true">New project</Button></template>
+          <template #description>
+            {{ canManage ? 'Create your first project to start working with your machine.' : 'Ask an organization admin to add you to a project.' }}
+          </template>
+          <template v-if="canManage" #action><Button @click="createOpen = true">New project</Button></template>
         </EmptyState>
 
         <EmptyState
@@ -155,7 +169,7 @@ async function confirmDelete() {
                 </div>
               </div>
             </button>
-            <div class="absolute right-3 top-3 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+            <div v-if="canManage" class="absolute right-3 top-3 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
               <DropdownMenu>
                 <DropdownMenuTrigger as-child>
                   <Button
@@ -195,7 +209,7 @@ async function confirmDelete() {
       title="Rename project"
       confirm-label="Rename"
       @confirm="confirmRename"
-      @update:open="(open: boolean) => { if (!open) projectToRename = null }"
+      @update:open="onRenameDialogOpen"
     >
       <template #description>
         <Input v-model="renameInput" placeholder="Project name" maxlength="120" autofocus class="mt-2" @keydown.enter.prevent="confirmRename" />
@@ -209,7 +223,7 @@ async function confirmDelete() {
       confirm-label="Delete"
       confirm-variant="destructive"
       @confirm="confirmDelete"
-      @update:open="(open: boolean) => { if (!open) projectToDelete = null }"
+      @update:open="onDeleteDialogOpen"
     >
       <template #description>
         This removes “{{ projectToDelete?.name }}” and its session links. Sessions on the OpenCode server are kept.

@@ -9,13 +9,13 @@ export type CustomizeSection =
   | 'webhooks'
   | 'changes'
   | 'files'
-  | 'sandbox'
+  | 'machine'
   | 'dev'
   | 'members'
   | 'settings'
 
-/** Shared open-state for the full-screen Customize overlay — the instance
- *  configuration surface (agents, skills, commands, connectors, …). */
+/** Shared open-state for the full-screen Customize overlay — the surface that
+ *  configures the user's machine (agents, skills, commands, connectors, …). */
 export function useCustomize() {
   const open = useState('customize:open', () => false)
   const section = useState<CustomizeSection>('customize:section', () => 'agents')
