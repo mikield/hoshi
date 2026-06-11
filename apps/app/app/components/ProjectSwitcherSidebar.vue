@@ -16,9 +16,10 @@ const props = defineProps<{
   collapsed?: boolean
 }>()
 
-const { projects, now, load } = useProjects()
+const projectsStore = useProjectsStore()
+const { projects, now } = storeToRefs(projectsStore)
 
-onMounted(() => load())
+onMounted(() => projectsStore.load())
 
 const activeProject = computed(() => projects.value.find((p) => p.id === props.projectId))
 const label = computed(() => activeProject.value?.name ?? 'Projects')

@@ -1,0 +1,20 @@
+{
+  "name": "@hoshi/api",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "nitro dev --port 4100",
+    "build": "nitro build",
+    "preview": "node .output/server/index.mjs",
+    "postinstall": "nitro prepare"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^12.10.0",
+    "jose": "^6.2.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "nitropack": "^2.12.9"
+  }
+}

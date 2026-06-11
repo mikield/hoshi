@@ -7,10 +7,10 @@ import {
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
+  Skeleton,
 } from '@hoshi/ui'
-import { LogOut, Settings, ChevronsUpDown, Plus, Check, ArrowUpRight, CreditCard } from 'lucide-vue-next'
-import type { AuthUser } from '~/composables/useAuth'
-import { logout } from '~/composables/useAuth'
+import { LogOut, Settings, ChevronsUpDown, Plus, Check, CreditCard, ShieldCheck } from 'lucide-vue-next'
+import type { AuthUser } from '~/stores/auth'
 
 const props = withDefaults(
   defineProps<{
@@ -22,11 +22,21 @@ const props = withDefaults(
 )
 
 const displayName = computed(() => props.user.name || props.user.email.split('@')[0])
-const organizationName = computed(() => `${props.user.email}'s Organization`)
 const { show: showSettings } = useSettingsModal()
+const { logout } = useAuthStore()
+
+const orgs = useOrganizationsStore()
+const creatingOrg = ref(false)
+onMounted(() => orgs.load())
+
+function switchOrg(id: string) {
+  orgs.setCurrent(id)
+  navigateTo('/projects')
+}
 </script>
 
 <template>
+  <OrganizationCreateModal v-model:open="creatingOrg" />
   <header class="kx-app-header flex shrink-0 items-center justify-between gap-3 px-6 py-4">
     <div class="flex min-w-0 items-center gap-1">
       <NuxtLink
@@ -37,15 +47,19 @@ const { show: showSettings } = useSettingsModal()
         <Logo variant="logo" class="h-4 w-auto" />
       </NuxtLink>
       <span aria-hidden="true" class="select-none px-0.5 text-sm font-light text-muted-foreground/40 transform -skew-x-12">/</span>
-      <DropdownMenu>
+      <div v-if="!orgs.current" class="flex h-8 items-center gap-2 px-2">
+        <Skeleton class="size-5 rounded-[5px]" />
+        <Skeleton class="h-4 w-36 rounded-md" />
+      </div>
+      <DropdownMenu v-else>
         <DropdownMenuTrigger as-child>
           <button
             type="button"
             aria-label="Switch organization"
             class="flex h-8 cursor-pointer items-center gap-2 rounded-lg px-2 text-foreground transition-colors hover:bg-muted/50 data-[state=open]:bg-muted/60"
           >
-            <EntityAvatar :label="organizationName" size="xs" />
-            <span class="max-w-40 truncate text-sm font-medium">{{ organizationName }}</span>
+            <EntityAvatar :label="orgs.current.name" size="xs" />
+            <span class="max-w-40 truncate text-sm font-medium">{{ orgs.current.name }}</span>
             <ChevronsUpDown class="h-3 w-3 text-muted-foreground/50" />
           </button>
         </DropdownMenuTrigger>
@@ -55,10 +69,15 @@ const { show: showSettings } = useSettingsModal()
               Organization
             </div>
             <div class="max-h-70 overflow-y-auto px-1">
-              <DropdownMenuItem class="flex h-9 cursor-pointer items-center gap-2.5 rounded-lg px-2 py-0 bg-muted/60">
-                <EntityAvatar :label="organizationName" size="xs" />
-                <span class="min-w-0 flex-1 truncate text-sm font-medium leading-tight">{{ organizationName }}</span>
-                <Check class="size-3.5 shrink-0 text-foreground/70" />
+              <DropdownMenuItem
+                v-for="org in orgs.organizations"
+                :key="org.id"
+                :class="['flex h-9 cursor-pointer items-center gap-2.5 rounded-lg px-2 py-0', org.id === orgs.current?.id && 'bg-muted/60']"
+                @select="switchOrg(org.id)"
+              >
+                <EntityAvatar :label="org.name" size="xs" />
+                <span class="min-w-0 flex-1 truncate text-sm font-medium leading-tight">{{ org.name }}</span>
+                <Check v-if="org.id === orgs.current?.id" class="size-3.5 shrink-0 text-foreground/70" />
               </DropdownMenuItem>
             </div>
           </div>
@@ -68,11 +87,7 @@ const { show: showSettings } = useSettingsModal()
               <Settings class="size-3.5" />
               <span class="flex-1 truncate text-sm font-medium text-foreground/80">Organization settings</span>
             </DropdownMenuItem>
-            <DropdownMenuItem class="flex h-8 cursor-pointer items-center gap-2 rounded-lg px-2 py-0 [&_svg]:text-muted-foreground/70!">
-              <ArrowUpRight class="size-3.5" />
-              <span class="flex-1 truncate text-sm font-medium text-foreground/80">All organizations</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem class="flex h-8 cursor-pointer items-center gap-2 rounded-lg px-2 py-0 [&_svg]:text-muted-foreground/70!">
+            <DropdownMenuItem class="flex h-8 cursor-pointer items-center gap-2 rounded-lg px-2 py-0 [&_svg]:text-muted-foreground/70!" @select="creatingOrg = true">
               <Plus class="size-3.5" />
               <span class="flex-1 truncate text-sm font-medium text-foreground/80">New organization</span>
             </DropdownMenuItem>
@@ -117,6 +132,10 @@ const { show: showSettings } = useSettingsModal()
             <DropdownMenuItem class="flex h-8 cursor-pointer items-center gap-2.5 rounded-lg px-2 py-0 text-left [&_svg]:text-muted-foreground/70!" @select="showSettings">
               <Settings class="size-3.5" />
               <span class="flex-1 truncate text-sm font-medium leading-tight">Settings</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem v-if="user.isAdmin" class="flex h-8 cursor-pointer items-center gap-2.5 rounded-lg px-2 py-0 text-left [&_svg]:text-muted-foreground/70!" @select="navigateTo('/admin')">
+              <ShieldCheck class="size-3.5" />
+              <span class="flex-1 truncate text-sm font-medium leading-tight">Admin console</span>
             </DropdownMenuItem>
             <DropdownMenuItem class="flex h-8 cursor-pointer items-center gap-2.5 rounded-lg px-2 py-0 text-left [&_svg]:text-muted-foreground/70!" @select="logout">
               <LogOut class="size-3.5" />

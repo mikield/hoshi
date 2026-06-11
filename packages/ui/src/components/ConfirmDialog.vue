@@ -8,7 +8,6 @@ import AlertDialogTitle from "./AlertDialogTitle.vue"
 import AlertDialogDescription from "./AlertDialogDescription.vue"
 import AlertDialogFooter from "./AlertDialogFooter.vue"
 import AlertDialogCancel from "./AlertDialogCancel.vue"
-import AlertDialogAction from "./AlertDialogAction.vue"
 
 interface Props {
   open: boolean
@@ -45,14 +44,18 @@ function handleConfirm(e: Event) {
       </AlertDialogHeader>
       <AlertDialogFooter>
         <AlertDialogCancel :disabled="isPending">{{ cancelLabel }}</AlertDialogCancel>
-        <AlertDialogAction
-          @click="handleConfirm"
+        <!-- Plain button, not AlertDialogAction: the action auto-closes on click,
+             which races ahead of the confirm handler. The parent closes the
+             dialog itself once the confirmed work settles. -->
+        <button
+          type="button"
           :disabled="isPending"
           :class="cn(buttonVariants({ variant: confirmVariant }), 'gap-1.5')"
+          @click="handleConfirm"
         >
           <slot name="icon" />
           {{ isPending ? `${confirmLabel}…` : confirmLabel }}
-        </AlertDialogAction>
+        </button>
       </AlertDialogFooter>
     </AlertDialogContent>
   </AlertDialog>

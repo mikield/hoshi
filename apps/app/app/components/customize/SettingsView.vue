@@ -3,11 +3,12 @@ import { ref, computed, watch } from 'vue'
 import { Button, Input, Label, ConfirmDialog } from '@hoshi/ui'
 import { Loader2, Settings } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
-import { useProjects } from '~/composables/useProjects'
 
 const props = defineProps<{ projectId: string }>()
 
-const { projects, rename, remove } = useProjects()
+const projectsStore = useProjectsStore()
+const { projects } = storeToRefs(projectsStore)
+const { rename, remove } = projectsStore
 const project = computed(() => projects.value.find((p) => p.id === props.projectId) ?? null)
 
 const name = ref('')

@@ -15,7 +15,7 @@ import { Users } from 'lucide-vue-next'
 // Mock surface — membership has no backend yet (single-user app). The invite
 // field and the member row match the real section's structure so the wiring
 // can drop in later.
-const user = useAuthUser()
+const { user } = storeToRefs(useAuthStore())
 const inviteEmail = ref('')
 const inviteRole = ref('member')
 

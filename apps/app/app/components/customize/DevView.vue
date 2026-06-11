@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Terminal } from 'lucide-vue-next'
-import { OPENCODE_SERVER_URL } from '~/composables/useOpencode'
+import { opencodeUrl } from '~/composables/useOpencode'
 
 // Local-development guide for connecting an OpenCode server to the app.
 const STEPS = [
@@ -11,7 +11,7 @@ const STEPS = [
   },
   {
     title: 'Start the server',
-    hint: `The app talks to it at ${OPENCODE_SERVER_URL}.`,
+    hint: `The app reaches it through the Hoshi API proxy at ${opencodeUrl()}.`,
     command: 'opencode serve',
   },
   {

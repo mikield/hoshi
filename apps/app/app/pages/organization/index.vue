@@ -3,13 +3,12 @@ import { ref, computed } from 'vue'
 import {
   Button,
   EmptyState,
-  Input,
   Tabs,
   TabsList,
   TabsTrigger,
   TabsContent,
 } from '@hoshi/ui'
-import { ArrowLeft, CircleHelp, FileClock, Github, Layers, Plus, Search, Users2 } from 'lucide-vue-next'
+import { ArrowLeft, CircleHelp, FileClock, Github, Layers } from 'lucide-vue-next'
 
 definePageMeta({ middleware: 'auth' })
 
@@ -17,16 +16,16 @@ const TAB_IDS = ['members', 'groups', 'billing', 'transactions', 'git', 'audit',
 type OrganizationTab = (typeof TAB_IDS)[number]
 
 const route = useRoute()
-const user = useAuthUser()
+const { user } = storeToRefs(useAuthStore())
+const orgs = useOrganizationsStore()
+onMounted(() => orgs.load())
 
 const initialTab = TAB_IDS.includes(route.query.tab as OrganizationTab)
   ? (route.query.tab as OrganizationTab)
   : 'members'
 const tab = ref<OrganizationTab>(initialTab)
 
-const groupQuery = ref('')
-
-const organizationName = computed(() => `${user.value?.email ?? 'Your'}'s Organization`)
+const organizationName = computed(() => orgs.current?.name ?? 'Organization')
 </script>
 
 <template>
@@ -46,11 +45,11 @@ const organizationName = computed(() => `${user.value?.email ?? 'Your'}'s Organi
           <div class="flex items-center gap-2 text-sm text-muted-foreground">
             <span>Organizations</span>
             <span class="text-muted-foreground/40">/</span>
-            <span class="truncate font-medium text-foreground">Organization</span>
+            <span class="truncate font-medium text-foreground">{{ organizationName }}</span>
           </div>
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h1 class="text-2xl font-semibold tracking-tight text-foreground">Organization</h1>
+              <h1 class="text-2xl font-semibold tracking-tight text-foreground">{{ organizationName }}</h1>
               <p class="mt-1 text-sm text-muted-foreground">Manage organization settings, members, and access.</p>
             </div>
             <Button variant="secondary" class="gap-1.5 rounded-full" disabled>
@@ -76,26 +75,7 @@ const organizationName = computed(() => `${user.value?.email ?? 'Your'}'s Organi
           </TabsContent>
 
           <TabsContent value="groups" class="space-y-6">
-            <OrganizationSectionCard
-              title="Groups"
-              description="Bundle members together and attach the whole group to projects with a role."
-            >
-              <template #actions>
-                <Button class="gap-1.5 rounded-full" disabled>
-                  <Plus class="size-4" />
-                  Create a group
-                </Button>
-              </template>
-              <template #search>
-                <div class="relative max-w-sm">
-                  <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input v-model="groupQuery" placeholder="Search by user group name…" class="h-9 pl-9" />
-                </div>
-              </template>
-              <EmptyState :icon="Users2" title="No groups yet" class="py-12">
-                <template #description>Create a group to bulk-add members to projects.</template>
-              </EmptyState>
-            </OrganizationSectionCard>
+            <OrganizationGroupsTab />
           </TabsContent>
 
           <TabsContent value="billing" class="space-y-6">
@@ -142,7 +122,7 @@ const organizationName = computed(() => `${user.value?.email ?? 'Your'}'s Organi
           </TabsContent>
 
           <TabsContent value="settings" class="space-y-6">
-            <OrganizationSettingsTab :organization-name="organizationName" />
+            <OrganizationSettingsTab />
           </TabsContent>
         </Tabs>
       </div>

@@ -1,6 +1,12 @@
-export const OPENCODE_SERVER_URL = 'http://localhost:4096'
 export const OPENCODE_MODEL = { providerID: 'github-copilot', modelID: 'claude-sonnet-4.6' }
-export const OPENCODE_CONNECT_ERROR = `Couldn't reach the OpenCode server at ${OPENCODE_SERVER_URL} — make sure \`opencode serve\` is running.`
+export const OPENCODE_CONNECT_ERROR =
+  "Couldn't reach the OpenCode server — make sure the Hoshi API and `opencode serve` are running."
+
+/** OpenCode endpoint on the Hoshi API server — every request goes through the
+ *  authenticated proxy, never to the OpenCode upstream directly. */
+export function opencodeUrl(path = ''): string {
+  return apiUrl(`/opencode${path}`)
+}
 
 export type SessionInfo = {
   id: string
@@ -26,6 +32,10 @@ export type Part = {
   mime?: string
   filename?: string
   url?: string
+  // present on streamed parts (message.part.updated events)
+  id?: string
+  messageID?: string
+  sessionID?: string
 }
 
 export type TokenUsage = {
@@ -40,6 +50,7 @@ export type ChatMessage = {
   info: {
     id: string
     role: 'user' | 'assistant'
+    sessionID?: string
     summary?: boolean
     providerID?: string
     modelID?: string
@@ -54,6 +65,8 @@ export type ModelOption = {
   modelID: string
   name: string
   contextLimit: number
+  /** True when the provider charges nothing for this model. */
+  free: boolean
 }
 
 export type AgentOption = {
@@ -95,8 +108,10 @@ export type OpencodeClient = Awaited<ReturnType<typeof createOpencodeClient>>
 
 /** Lazily create the OpenCode SDK client (browser-only — imported dynamically to keep SSR clean). */
 export async function createOpencodeClient(): Promise<any> {
+  // Resolve before the await — runtime config needs the Nuxt context.
+  const baseUrl = opencodeUrl()
   const { createOpencodeClient: factory } = await import('@opencode-ai/sdk/client')
-  return factory({ baseUrl: OPENCODE_SERVER_URL })
+  return factory({ baseUrl, credentials: 'include' })
 }
 
 export function partsText(parts: Part[]): string {
@@ -142,7 +157,73 @@ export function turnItems(messages: ChatMessage[]): TurnItem[] {
   return items
 }
 
-type ProviderModel = { id: string; name?: string; limit?: { context?: number } }
+export type FileNode = {
+  name: string
+  path: string
+  absolute: string
+  type: 'file' | 'directory'
+  ignored: boolean
+}
+
+export type FileContent = {
+  type: 'text' | 'binary'
+  content: string
+  encoding?: 'base64'
+  mimeType?: string
+}
+
+export type FileStatusEntry = {
+  path: string
+  added: number
+  removed: number
+  status: 'added' | 'deleted' | 'modified'
+}
+
+/** Direct children of a directory in the OpenCode workspace. */
+export async function fetchFileTree(client: OpencodeClient, path: string): Promise<FileNode[]> {
+  return unwrap<FileNode[]>(await client.file.list({ query: { path } }))
+}
+
+export async function readFile(client: OpencodeClient, path: string): Promise<FileContent> {
+  return unwrap<FileContent>(await client.file.read({ query: { path } }))
+}
+
+/** Files changed since the last git commit (the workspace's working tree). */
+export async function fetchFileStatus(client: OpencodeClient): Promise<FileStatusEntry[]> {
+  return unwrap<FileStatusEntry[]>(await client.file.status())
+}
+
+/** Server-sent event from /event — discriminated by `type`, payload in `properties`. */
+export type OpencodeEvent = { type: string; properties: Record<string, any> }
+
+export type SessionStatus = { type: 'idle' } | { type: 'busy' } | { type: 'retry'; attempt: number; message: string; next: number }
+
+/** Long-lived /event subscription. Delivers every event to `onEvent` and
+ *  resubscribes on dropped connections until the signal aborts. */
+export async function streamEvents(
+  client: OpencodeClient,
+  onEvent: (event: OpencodeEvent) => void,
+  signal: AbortSignal,
+): Promise<void> {
+  while (!signal.aborted) {
+    try {
+      const { stream } = await client.event.subscribe({ signal })
+      for await (const event of stream) {
+        onEvent(event as OpencodeEvent)
+      }
+    } catch {
+      /* dropped connection — resubscribe below */
+    }
+    if (!signal.aborted) await new Promise((resolve) => setTimeout(resolve, 2000))
+  }
+}
+
+type ProviderModel = {
+  id: string
+  name?: string
+  limit?: { context?: number }
+  cost?: { input?: number; output?: number }
+}
 type ProviderEntry = { id: string; name?: string; models: Record<string, ProviderModel> }
 
 /** All selectable models across providers, flattened from /config/providers. */
@@ -155,6 +236,7 @@ export async function fetchModels(client: OpencodeClient): Promise<ModelOption[]
       modelID: model.id,
       name: model.name ?? model.id,
       contextLimit: model.limit?.context ?? 0,
+      free: (model.cost?.input ?? 0) === 0 && (model.cost?.output ?? 0) === 0,
     })),
   )
 }
@@ -180,7 +262,7 @@ export async function fetchCommands(client: OpencodeClient): Promise<CommandOpti
 
 /** Skills installed on the server. Plain fetch — the SDK has no skill namespace. */
 export async function fetchSkills(): Promise<SkillInfo[]> {
-  const res = await fetch(`${OPENCODE_SERVER_URL}/skill`)
+  const res = await fetch(opencodeUrl('/skill'), { credentials: 'include' })
   if (!res.ok) throw new Error(`GET /skill failed: ${res.status}`)
   const skills = (await res.json()) as Array<{ name: string; description?: string }>
   return skills.map(({ name, description }) => ({ name, description }))
@@ -188,7 +270,7 @@ export async function fetchSkills(): Promise<SkillInfo[]> {
 
 /** Configured MCP servers with their connection status. */
 export async function fetchMcpServers(): Promise<McpServerInfo[]> {
-  const res = await fetch(`${OPENCODE_SERVER_URL}/mcp`)
+  const res = await fetch(opencodeUrl('/mcp'), { credentials: 'include' })
   if (!res.ok) throw new Error(`GET /mcp failed: ${res.status}`)
   const servers = (await res.json()) as Record<string, { status: string }>
   return Object.entries(servers).map(([name, info]) => ({ name, status: info.status }))

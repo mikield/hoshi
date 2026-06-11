@@ -11,6 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   ConfirmDialog,
+  Skeleton,
 } from '@hoshi/ui'
 import { Search, Plus, MoreHorizontal, Pencil, Trash2, FolderPlus } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
@@ -18,8 +19,10 @@ import { useProjects, shortRelative, sqliteTimestamp, type Project } from '~/com
 
 definePageMeta({ middleware: 'auth' })
 
-const user = useAuthUser()
-const { projects, loading, loadError, now, load, create, rename, remove } = useProjects()
+const { user } = storeToRefs(useAuthStore())
+const projectsStore = useProjectsStore()
+const { projects, loading, loadError, now } = storeToRefs(projectsStore)
+const { load, create, rename, remove } = projectsStore
 
 const query = ref('')
 const createOpen = ref(false)
@@ -108,7 +111,7 @@ async function confirmDelete() {
         </div>
 
         <div v-if="loading && projects.length === 0" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <div v-for="i in 3" :key="i" class="h-24 animate-pulse rounded-lg border border-border/40 bg-muted/30" />
+          <Skeleton v-for="i in 6" :key="i" class="h-[92px] rounded-2xl" />
         </div>
 
         <EmptyState v-else-if="loadError" :icon="FolderPlus" title="Couldn't load projects">

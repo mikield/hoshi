@@ -2,11 +2,11 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "react-design-system",
-      "runtimeExecutable": "./node_modules/.bin/next",
-      "runtimeArgs": ["dev", "--port", "3200"],
-      "cwd": "apps/react-app",
-      "port": 3200
+      "name": "api",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["dev"],
+      "cwd": "apps/api",
+      "port": 4100
     },
     {
       "name": "ui-playground",

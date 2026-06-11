@@ -9,9 +9,6 @@ import CommandInput from "./CommandInput.vue"
 import CommandList from "./CommandList.vue"
 import CommandGroup from "./CommandGroup.vue"
 import CommandItem from "./CommandItem.vue"
-import Tooltip from "./Tooltip.vue"
-import TooltipTrigger from "./TooltipTrigger.vue"
-import TooltipContent from "./TooltipContent.vue"
 
 export interface AgentItem {
   name: string
@@ -45,27 +42,23 @@ function pick(name: string) {
 
 <template>
   <CommandPopover v-model:open="open">
-    <Tooltip>
-      <TooltipTrigger as-child>
-        <CommandPopoverTrigger as-child>
-          <button
-            type="button"
-            aria-label="Agent picker"
-            :class="cn(
-              'inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full px-2.5 text-xs font-medium capitalize text-muted-foreground transition-colors duration-200 hover:bg-muted hover:text-foreground',
-              flash && 'bg-primary/10 text-foreground',
-              open && 'bg-muted text-foreground',
-            )"
-          >
-            <span class="max-w-[100px] truncate">{{ current?.name ?? 'Agent' }}</span>
-            <ChevronDown :class="cn('size-3 opacity-50 transition-transform duration-200', open && 'rotate-180')" />
-          </button>
-        </CommandPopoverTrigger>
-      </TooltipTrigger>
-      <TooltipContent side="top" class="text-xs">Switch agent</TooltipContent>
-    </Tooltip>
+    <CommandPopoverTrigger as-child>
+      <button
+        type="button"
+        aria-label="Agent picker"
+        title="Switch agent"
+        :class="cn(
+          'inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full px-2.5 text-xs font-medium capitalize text-muted-foreground transition-colors duration-200 hover:bg-muted hover:text-foreground',
+          flash && 'bg-primary/10 text-foreground',
+          open && 'bg-muted text-foreground',
+        )"
+      >
+        <span class="max-w-[100px] truncate">{{ current?.name ?? 'Agent' }}</span>
+        <ChevronDown :class="cn('size-3 opacity-50 transition-transform duration-200', open && 'rotate-180')" />
+      </button>
+    </CommandPopoverTrigger>
 
-    <CommandPopoverContent side="top" align="start" :side-offset="8" class="w-[300px]">
+    <CommandPopoverContent side="top" align="start" :side-offset="8" should-filter class="w-[300px]">
       <CommandInput compact placeholder="Search agents…" />
       <CommandList class="max-h-[320px]">
         <CommandGroup heading="Agents">

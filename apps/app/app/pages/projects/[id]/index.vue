@@ -1,15 +1,23 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { EntityAvatar, cn } from '@hoshi/ui'
-import { AlertCircle, ArrowUp, Building2, Globe, Search, Presentation } from 'lucide-vue-next'
+import { EntityAvatar } from '@hoshi/ui'
+import { AlertCircle, Building2, Globe, Search, Presentation } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
 import {
   createOpencodeClient,
   unwrap,
+  fetchModels,
+  fetchAgents,
+  fetchCommands,
+  filePartsFrom,
   OPENCODE_MODEL,
   OPENCODE_CONNECT_ERROR,
   type OpencodeClient,
   type SessionInfo,
+  type ModelOption,
+  type AgentOption,
+  type CommandOption,
+  type OutgoingFile,
 } from '~/composables/useOpencode'
 import {
   useProjects,
@@ -22,7 +30,8 @@ definePageMeta({ middleware: 'auth' })
 
 const route = useRoute()
 const projectId = computed(() => route.params.id as string)
-const { projects, load: loadProjects } = useProjects()
+const projectsStore = useProjectsStore()
+const { projects } = storeToRefs(projectsStore)
 const projectName = computed(() => projects.value.find((p) => p.id === projectId.value)?.name ?? 'Your project')
 
 const STARTERS = [
@@ -39,8 +48,19 @@ const error = ref<string | null>(null)
 const sessions = ref<SessionInfo[]>([])
 const loadingSessions = ref(true)
 
+const models = ref<ModelOption[]>([])
+const agents = ref<AgentOption[]>([])
+const commands = ref<CommandOption[]>([])
+// Shared with the session page so the choice sticks across surfaces.
+const { selectedModel, selectedAgent } = storeToRefs(useChatStore())
+
+const promptModel = computed(() => {
+  const [providerID, ...rest] = (selectedModel.value ?? '').split('/')
+  return providerID && rest.length ? { providerID, modelID: rest.join('/') } : OPENCODE_MODEL
+})
+
 onMounted(async () => {
-  void loadProjects()
+  void projectsStore.load()
   client = await createOpencodeClient()
   try {
     const [list, projectIds] = await Promise.all([
@@ -53,25 +73,79 @@ onMounted(async () => {
   } finally {
     loadingSessions.value = false
   }
+  // Selector data is secondary — load it after the session list, tolerate failure.
+  try {
+    ;[models.value, agents.value, commands.value] = await Promise.all([
+      fetchModels(client),
+      fetchAgents(client),
+      fetchCommands(client),
+    ])
+    if (!selectedModel.value && models.value.length > 0) {
+      const fallback = `${OPENCODE_MODEL.providerID}/${OPENCODE_MODEL.modelID}`
+      const exists = models.value.some((m) => `${m.providerID}/${m.modelID}` === fallback)
+      const first = models.value[0]!
+      selectedModel.value = exists ? fallback : `${first.providerID}/${first.modelID}`
+    }
+    if (!selectedAgent.value && agents.value.length > 0) {
+      selectedAgent.value = agents.value[0]!.name
+    }
+  } catch {
+    /* composer degrades to plain input */
+  }
 })
 
-async function startSession(prompt?: string) {
-  const text = (prompt ?? input.value).trim()
+/** Create a session, optionally fire the first prompt, then jump into it. */
+async function startSession(text = '', files: OutgoingFile[] = []) {
   if (creating.value) return
   creating.value = true
   error.value = null
   try {
     if (!client) client = await createOpencodeClient()
-    const res = await client.session.create({ body: { title: text || 'New session' } })
+    const res = await client.session.create({ body: { title: text.trim() || 'New session' } })
     const created = unwrap<{ id: string }>(res)
     await registerProjectSession(projectId.value, created.id)
-    if (text) {
+    const parts = [...filePartsFrom(files), ...(text.trim() ? [{ type: 'text', text: text.trim() }] : [])]
+    if (parts.length > 0) {
       // Fire-and-forget so navigation isn't blocked, but surface failures —
       // otherwise the user lands in a session that silently never answers.
       client.session
-        .prompt({ path: { id: created.id }, body: { model: OPENCODE_MODEL, parts: [{ type: 'text', text }] } })
+        .prompt({
+          path: { id: created.id },
+          body: {
+            model: promptModel.value,
+            ...(selectedAgent.value ? { agent: selectedAgent.value } : {}),
+            parts,
+          },
+        })
         .catch(() => toast.error('Failed to send the first message — try again in the session.'))
     }
+    await navigateTo(`/projects/${projectId.value}/sessions/${created.id}`)
+  } catch {
+    error.value = OPENCODE_CONNECT_ERROR
+    creating.value = false
+  }
+}
+
+/** Slash command from the composer: open a session and run it there. */
+async function startCommand(name: string, args: string) {
+  if (creating.value) return
+  creating.value = true
+  error.value = null
+  try {
+    if (!client) client = await createOpencodeClient()
+    const created = unwrap<{ id: string }>(await client.session.create({ body: { title: `/${name}` } }))
+    await registerProjectSession(projectId.value, created.id)
+    client.session
+      .command({
+        path: { id: created.id },
+        body: {
+          command: name,
+          arguments: args,
+          model: `${promptModel.value.providerID}/${promptModel.value.modelID}`,
+          ...(selectedAgent.value ? { agent: selectedAgent.value } : {}),
+        },
+      })
+      .catch(() => toast.error('Failed to run the command — try again in the session.'))
     await navigateTo(`/projects/${projectId.value}/sessions/${created.id}`)
   } catch {
     error.value = OPENCODE_CONNECT_ERROR
@@ -139,9 +213,9 @@ function selectSession(id: string) {
         </div>
       </div>
 
-      <!-- Bottom dock — starter chips over the pinned composer -->
+      <!-- Bottom dock — starter chips over the shared composer -->
       <div class="relative z-10 shrink-0">
-        <div class="mx-auto w-full max-w-[52rem] px-2 pb-6 sm:px-4">
+        <div class="mx-auto w-full max-w-[52rem] px-2 sm:px-4">
           <p v-if="error" class="mb-2 flex items-center gap-1.5 px-2 text-sm text-destructive">
             <AlertCircle class="size-3.5 shrink-0" />
             {{ error }}
@@ -160,35 +234,23 @@ function selectSession(id: string) {
               {{ label }}
             </button>
           </div>
-
-          <div :class="cn('mt-2.5 w-full overflow-visible rounded-[24px] border border-border bg-card transition-colors', 'focus-within:border-foreground/20')">
-            <div class="flex flex-col gap-2">
-              <div class="px-3.5">
-                <textarea
-                  v-model="input"
-                  rows="1"
-                  autofocus
-                  placeholder="Describe a task to start a session…"
-                  class="relative max-h-[200px] min-h-[72px] w-full resize-none overflow-y-auto border-none bg-transparent px-0.5 pb-6 pt-4 text-base leading-relaxed outline-none placeholder:text-muted-foreground sm:text-sm"
-                  @keydown.enter.exact.prevent="startSession()"
-                />
-              </div>
-              <div class="mb-1.5 flex items-center justify-between gap-1 pl-2 pr-1.5">
-                <div class="flex min-w-0 items-center gap-2" />
-                <button
-                  type="button"
-                  :disabled="creating || !input.trim()"
-                  aria-label="Start session"
-                  class="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full bg-primary p-0 text-primary-foreground transition-opacity hover:opacity-90 disabled:pointer-events-none disabled:opacity-50"
-                  @click="startSession()"
-                >
-                  <span v-if="creating" class="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                  <ArrowUp v-else class="size-4" />
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
+
+        <SessionChatInput
+          v-model="input"
+          v-model:model="selectedModel"
+          v-model:agent="selectedAgent"
+          :busy="creating"
+          wide
+          :agents="agents"
+          :models="models"
+          :commands="commands"
+          :context="null"
+          placeholder="Describe a task to start a session…"
+          autofocus
+          @send="startSession"
+          @command="startCommand"
+        />
       </div>
     </div>
   </ProjectShell>

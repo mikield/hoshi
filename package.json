@@ -1,23 +1,17 @@
 {
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "hoshi",
+  "private": true,
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "pnpm --parallel --filter @hoshi/api --filter @hoshi/app dev",
+    "dev:app": "pnpm --filter @hoshi/app dev",
+    "dev:api": "pnpm --filter @hoshi/api dev"
   },
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
       "version": "11.0.8",
       "onFail": "download"
     }
-  },
-  "type": "module"
+  }
 }

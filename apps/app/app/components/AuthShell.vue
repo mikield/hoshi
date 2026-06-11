@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { ChevronDown } from 'lucide-vue-next'
-import { WallpaperBackground } from '@hoshi/ui'
+import { Logo, WallpaperBackground } from '@hoshi/ui'
 
 defineProps<{
   wallpaperId?: string
@@ -74,9 +74,9 @@ function fmtTime(d: Date) {
         <!-- Hint -->
         <Transition name="hint-slide" appear>
           <div class="absolute bottom-[10vh] left-0 right-0 flex flex-col items-center gap-3">
-            <div class="flex flex-col items-center gap-1.5">
-              <p class="text-foreground/50 text-sm font-medium tracking-wide">Hoshi</p>
-              <p class="text-foreground/25 text-xs tracking-widest uppercase">Click or press Enter to sign in</p>
+            <div class="flex flex-col items-center gap-2.5">
+              <Logo variant="logo" class="h-4 w-auto opacity-70" />
+              <p class="text-foreground/45 text-xs tracking-widest uppercase">Click or press Enter to sign in</p>
             </div>
             <ChevronDown class="size-3.5 text-foreground/40 animate-bounce-x" />
           </div>

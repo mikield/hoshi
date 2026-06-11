@@ -9,8 +9,7 @@ import {
   cn,
 } from '@hoshi/ui'
 import { ChevronsUpDown, Home, LogOut, Settings } from 'lucide-vue-next'
-import type { AuthUser } from '~/composables/useAuth'
-import { logout } from '~/composables/useAuth'
+import type { AuthUser } from '~/stores/auth'
 
 const props = defineProps<{
   user: AuthUser
@@ -19,6 +18,7 @@ const props = defineProps<{
 
 const displayName = computed(() => props.user.name || props.user.email.split('@')[0])
 const { show: showSettings } = useSettingsModal()
+const { logout } = useAuthStore()
 </script>
 
 <template>

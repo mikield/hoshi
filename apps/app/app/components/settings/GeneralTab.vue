@@ -3,9 +3,9 @@ import { ref, computed, watch } from 'vue'
 import { Button, Input, Label, UserAvatar } from '@hoshi/ui'
 import { Loader2 } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
-import type { AuthUser } from '~/composables/useAuth'
 
-const user = useAuthUser()
+const auth = useAuthStore()
+const { user } = storeToRefs(auth)
 const name = ref(user.value?.name ?? '')
 const saving = ref(false)
 
@@ -17,8 +17,7 @@ async function save() {
   if (!dirty.value || saving.value) return
   saving.value = true
   try {
-    const res = await $fetch<{ user: AuthUser }>('/api/auth/me', { method: 'PATCH', body: { name: name.value.trim() } })
-    user.value = res.user
+    await auth.updateName(name.value.trim())
     toast.success('Profile updated')
   } catch (err) {
     const message = (err as { data?: { statusMessage?: string } })?.data?.statusMessage

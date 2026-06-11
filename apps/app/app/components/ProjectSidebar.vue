@@ -6,6 +6,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
+  Skeleton,
   cn,
 } from '@hoshi/ui'
 import {
@@ -32,9 +33,9 @@ const props = defineProps<{
 
 const emit = defineEmits<{ select: [id: string]; create: []; delete: [id: string] }>()
 
-const user = useAuthUser()
+const { user } = storeToRefs(useAuthStore())
 const { show: showCustomize } = useCustomize()
-const { now } = useProjects()
+const { now } = storeToRefs(useProjectsStore())
 const collapsed = useState('sidebar:collapsed', () => false)
 const sessionsOpen = ref(true)
 const hoveredId = ref<string | null>(null)
@@ -170,7 +171,7 @@ function onKeydown(e: KeyboardEvent) {
             class="min-h-0 flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] scrollbar-none"
           >
             <div v-if="loading" class="space-y-1">
-              <div v-for="i in 3" :key="i" class="h-8 animate-pulse rounded-lg bg-sidebar-accent/30" />
+              <Skeleton v-for="i in 4" :key="i" class="h-8 rounded-lg" />
             </div>
             <div v-else-if="rootSessions.length === 0" class="px-2 pb-2 pt-1 text-xs text-muted-foreground/60">
               No sessions yet.

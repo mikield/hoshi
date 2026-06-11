@@ -36,7 +36,7 @@ import { useCustomize, type CustomizeSection } from '~/composables/useCustomize'
 
 const { open, section } = useCustomize()
 const route = useRoute()
-const { projects } = useProjects()
+const { projects } = storeToRefs(useProjectsStore())
 
 const projectId = computed(() => (route.params.id as string | undefined) ?? null)
 const projectName = computed(() => projects.value.find((p) => p.id === projectId.value)?.name ?? null)

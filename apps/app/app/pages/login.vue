@@ -71,18 +71,21 @@ async function onSubmit() {
 
   pending.value = true
   try {
+    const api = useApi()
     if (mode.value === 'signin') {
-      await $fetch('/api/auth/login', {
+      await api('/auth/login', {
         method: 'POST',
         body: {email: email.value, password: password.value},
       })
     } else {
-      await $fetch('/api/auth/register', {
+      await api('/auth/register', {
         method: 'POST',
         body: {name: name.value, email: email.value, password: password.value},
       })
     }
-    await navigateTo('/projects')
+    // Deep links (e.g. invite acceptance) round-trip through ?redirect=.
+    const redirect = useRoute().query.redirect
+    await navigateTo(typeof redirect === 'string' && redirect.startsWith('/') ? redirect : '/projects')
   } catch (e: any) {
     error.value = e?.data?.error ?? 'Something went wrong. Please try again.'
   } finally {

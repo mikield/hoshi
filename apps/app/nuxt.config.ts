@@ -6,16 +6,20 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   css: ['~/assets/css/main.css'],
 
+  runtimeConfig: {
+    public: {
+      // Hoshi API server (apps/api) — override with NUXT_PUBLIC_API_BASE.
+      apiBase: 'http://localhost:4100',
+    },
+  },
+
   vite: {
     plugins: [tailwindcss()],
   },
 
-  // better-sqlite3 is a native module — keep it external to the Nitro bundle.
-  nitro: {
-    externals: {
-      external: ['better-sqlite3'],
-    },
-  },
+  modules: ['@nuxtjs/color-mode', '@nuxtjs/mdc', '@pinia/nuxt'],
 
-  modules: ['@nuxtjs/color-mode', '@nuxtjs/mdc'],
+  imports: {
+    dirs: ['stores'],
+  },
 })
