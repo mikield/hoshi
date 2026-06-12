@@ -1,5 +1,5 @@
 import { requireAuth } from '../../utils/auth'
-import { findWebhook, updateWebhook } from '../../utils/db'
+import { findWebhook, updateWebhook } from '../../db/triggers'
 import { webhookToApi } from '../../utils/triggers'
 
 export default defineEventHandler(async (event) => {

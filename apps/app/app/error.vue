@@ -1,41 +1,55 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { NuxtError } from '#app'
-import { Button, Logo, WallpaperBackground } from '@hoshi/ui'
+import { Button, StatusScreen } from '@hoshi/ui'
+import { ArrowLeft, RefreshCw, Wrench } from 'lucide-vue-next'
 
 const props = defineProps<{ error: NuxtError }>()
 
 const is404 = computed(() => props.error.statusCode === 404)
+// SSR-time 503s can still land here — same maintenance face as the overlay.
 const isMaintenance = computed(() => props.error.statusCode === 503)
+
 const title = computed(() => {
-  if (is404.value) return 'This page drifted off'
-  if (isMaintenance.value) return 'Down for maintenance'
+  if (is404.value) return 'Page not found'
+  if (isMaintenance.value) return "We'll be right back"
   return 'Something went wrong'
 })
-const detail = computed(() => {
+
+const description = computed(() => {
   if (is404.value) return "The page you're looking for doesn't exist — it may have moved or never was."
-  if (isMaintenance.value) return props.error.statusMessage ?? 'Hoshi is briefly offline while we work on it — back shortly.'
-  return props.error.statusMessage ?? 'An unexpected error interrupted the app.'
+  if (isMaintenance.value)
+    return props.error.statusMessage ?? 'Hoshi is briefly offline while we work on it. Please check back soon.'
+  return props.error.statusMessage ?? 'An unexpected error interrupted the app. Your work is safe.'
 })
 
 function goHome() {
   clearError({ redirect: '/projects' })
 }
+
+function retry() {
+  clearError()
+  window.location.reload()
+}
 </script>
 
 <template>
-  <div class="fixed inset-0 overflow-hidden bg-background">
-    <WallpaperBackground wallpaper-id="brandmark" />
-    <div class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-5 px-6 text-center">
-      <Logo variant="logo" class="h-4 w-auto opacity-70" />
-      <p class="select-none text-7xl font-extralight leading-none tracking-[-0.02em] text-foreground/80 tabular-nums sm:text-8xl">
-        {{ error.statusCode }}
-      </p>
-      <div class="space-y-1.5">
-        <h1 class="text-lg font-semibold tracking-tight text-foreground">{{ title }}</h1>
-        <p class="mx-auto max-w-sm text-sm text-muted-foreground">{{ detail }}</p>
-      </div>
-      <Button class="mt-2 rounded-full" @click="goHome">Back to your projects</Button>
-    </div>
-  </div>
+  <StatusScreen :glyph="isMaintenance ? undefined : String(error.statusCode)" :title="title" :description="description">
+    <template v-if="isMaintenance" #icon>
+      <span class="flex size-20 items-center justify-center rounded-2xl border border-amber-500/20 bg-amber-500/10">
+        <Wrench class="size-9 text-amber-500" />
+      </span>
+    </template>
+
+    <template #actions>
+      <Button size="lg" class="h-12 gap-2 rounded-full" @click="goHome">
+        <ArrowLeft class="size-4" />
+        Back to your projects
+      </Button>
+      <Button v-if="!is404" variant="outline" size="lg" class="h-12 gap-2 rounded-full" @click="retry">
+        <RefreshCw class="size-4" />
+        Try again
+      </Button>
+    </template>
+  </StatusScreen>
 </template>

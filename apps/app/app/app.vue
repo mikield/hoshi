@@ -24,6 +24,13 @@ useRouter().beforeResolve((to, from) => {
 })
 
 useIdleLock()
+
+// Session-activity alerts ride the shared event stream — armed once signed in.
+const { user } = storeToRefs(useAuthStore())
+const alerts = useAlertsStore()
+onMounted(() => {
+  watch(user, (signedIn) => signedIn && alerts.init(), { immediate: true })
+})
 </script>
 
 <template>
@@ -34,6 +41,7 @@ useIdleLock()
     </NuxtLayout>
     <UserSettingsModal />
     <CustomizeOverlay />
+    <MaintenanceOverlay />
     <LockScreen />
     <Toaster />
   </div>

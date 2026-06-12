@@ -1,4 +1,4 @@
-import { renameProject } from '../../utils/db'
+import { renameProject } from '../../db/projects'
 import { requireProjectAccess } from '../../utils/orgs'
 
 export default defineEventHandler(async (event) => {

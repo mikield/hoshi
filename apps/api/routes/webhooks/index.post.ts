@@ -1,5 +1,5 @@
 import { requireAuth } from '../../utils/auth'
-import { createWebhook } from '../../utils/db'
+import { createWebhook } from '../../db/triggers'
 import { requireProjectAccess } from '../../utils/orgs'
 import { validateTriggerFields, webhookToApi } from '../../utils/triggers'
 

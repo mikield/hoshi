@@ -1,5 +1,5 @@
 import { requireAuth } from '../../utils/auth'
-import { deleteSchedule, findSchedule } from '../../utils/db'
+import { deleteSchedule, findSchedule } from '../../db/triggers'
 
 export default defineEventHandler(async (event) => {
   const session = await requireAuth(event)

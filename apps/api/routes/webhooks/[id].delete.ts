@@ -1,5 +1,5 @@
 import { requireAuth } from '../../utils/auth'
-import { deleteWebhook, findWebhook } from '../../utils/db'
+import { deleteWebhook, findWebhook } from '../../db/triggers'
 
 export default defineEventHandler(async (event) => {
   const session = await requireAuth(event)

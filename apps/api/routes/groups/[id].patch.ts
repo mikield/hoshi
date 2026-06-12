@@ -1,4 +1,4 @@
-import { renameGroup } from '../../utils/db'
+import { renameGroup } from '../../db/groups'
 import { requireGroupAccess } from '../../utils/groups'
 
 export default defineEventHandler(async (event) => {

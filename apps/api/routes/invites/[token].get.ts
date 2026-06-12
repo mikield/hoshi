@@ -1,4 +1,6 @@
-import { findInvite, findOrganization, findUserById, isInviteExpired } from '../../utils/db'
+import { findInvite, isInviteExpired } from '../../db/invites'
+import { findOrganization } from '../../db/orgs'
+import { findUserById } from '../../db/users'
 
 /** Public invite preview — enough to render the accept page, nothing sensitive. */
 export default defineEventHandler((event) => {

@@ -1,5 +1,5 @@
 import { requireAuth } from '../../utils/auth'
-import { listSchedulesForUser } from '../../utils/db'
+import { listSchedulesForUser } from '../../db/triggers'
 import { scheduleToApi } from '../../utils/triggers'
 
 export default defineEventHandler(async (event) => {

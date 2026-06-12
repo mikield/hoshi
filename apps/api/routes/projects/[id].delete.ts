@@ -1,4 +1,4 @@
-import { deleteProject } from '../../utils/db'
+import { deleteProject } from '../../db/projects'
 import { requireProjectAccess } from '../../utils/orgs'
 
 export default defineEventHandler(async (event) => {

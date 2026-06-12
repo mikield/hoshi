@@ -1,4 +1,4 @@
-import { listProjectSessionIds } from '../../../utils/db'
+import { listProjectSessionIds } from '../../../db/projects'
 import { requireProjectAccess } from '../../../utils/orgs'
 
 export default defineEventHandler(async (event) => {

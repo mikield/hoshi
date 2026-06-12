@@ -206,21 +206,67 @@ export async function fetchSessionStatuses(client: OpencodeClient): Promise<Reco
   return unwrap<Record<string, SessionStatus>>(await client.session.status())
 }
 
-/** Long-lived /event subscription. Delivers every event to `onEvent` and
- *  resubscribes on dropped connections until the signal aborts. */
+/** The server heartbeats every ~10s — three missed beats means the proxied
+ *  connection died silently (upstream gone, client socket still open). */
+const STREAM_WATCHDOG_MS = 30_000
+
+/** Long-lived /event subscription over plain fetch — the SDK's subscribe
+ *  iterator proved unreliable through the proxy, so the SSE framing is parsed
+ *  by hand. Delivers every event to `onEvent` and resubscribes on dropped
+ *  connections until the signal aborts. Two failure modes are handled
+ *  deliberately: each attempt's controller is ALWAYS aborted on exit (an
+ *  attempt that dies without releasing its socket leaks zombie connections
+ *  until the browser's 6-per-origin pool starves), and a heartbeat watchdog
+ *  kills attempts that go silent without closing. */
 export async function streamEvents(
-  client: OpencodeClient,
+  url: string,
   onEvent: (event: OpencodeEvent) => void,
   signal: AbortSignal,
 ): Promise<void> {
   while (!signal.aborted) {
+    const attempt = new AbortController()
+    const onOuterAbort = () => attempt.abort()
+    signal.addEventListener('abort', onOuterAbort)
+    let watchdog = setTimeout(() => attempt.abort(), STREAM_WATCHDOG_MS)
+    const armWatchdog = () => {
+      clearTimeout(watchdog)
+      watchdog = setTimeout(() => attempt.abort(), STREAM_WATCHDOG_MS)
+    }
     try {
-      const { stream } = await client.event.subscribe({ signal })
-      for await (const event of stream) {
-        onEvent(event as OpencodeEvent)
+      const res = await fetch(url, {
+        credentials: 'include',
+        headers: { accept: 'text/event-stream' },
+        signal: attempt.signal,
+      })
+      if (!res.ok || !res.body) throw new Error(`event stream failed: ${res.status}`)
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        armWatchdog()
+        buffer += decoder.decode(value, { stream: true })
+        let frameEnd
+        while ((frameEnd = buffer.indexOf('\n\n')) !== -1) {
+          const frame = buffer.slice(0, frameEnd)
+          buffer = buffer.slice(frameEnd + 2)
+          for (const line of frame.split('\n')) {
+            if (!line.startsWith('data: ')) continue
+            try {
+              onEvent(JSON.parse(line.slice(6)) as OpencodeEvent)
+            } catch {
+              /* malformed frame — skip it, keep the stream */
+            }
+          }
+        }
       }
     } catch {
       /* dropped connection — resubscribe below */
+    } finally {
+      clearTimeout(watchdog)
+      attempt.abort()
+      signal.removeEventListener('abort', onOuterAbort)
     }
     if (!signal.aborted) await new Promise((resolve) => setTimeout(resolve, 2000))
   }
@@ -310,6 +356,55 @@ export async function patchGlobalConfig(patch: Record<string, unknown>): Promise
     body: JSON.stringify(patch),
   })
   if (!res.ok) throw new Error(`PATCH /global/config failed: ${res.status}`)
+}
+
+// ── Questions — the agent asking the user to choose ──────────────────────────
+
+export type QuestionOption = { label: string; description?: string }
+
+export type QuestionInfo = {
+  question: string
+  header?: string
+  options: QuestionOption[]
+  /** Allow selecting several options. */
+  multiple?: boolean
+  /** Allow a free-text answer (defaults to allowed). */
+  custom?: boolean
+}
+
+export type QuestionRequest = {
+  id: string
+  sessionID: string
+  questions: QuestionInfo[]
+  /** The tool call in the thread this question belongs to. */
+  tool?: { messageID: string; callID: string }
+}
+
+/** All pending question requests on the server — the replay source when a
+ *  session opens while the agent is waiting on an answer. */
+export async function fetchQuestions(): Promise<QuestionRequest[]> {
+  const res = await fetch(opencodeUrl('/question'), { credentials: 'include' })
+  if (!res.ok) throw new Error(`GET /question failed: ${res.status}`)
+  return res.json()
+}
+
+/** One answers array per question, each holding the selected labels. */
+export async function replyQuestion(requestID: string, answers: string[][]): Promise<void> {
+  const res = await fetch(opencodeUrl(`/question/${requestID}/reply`), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ answers }),
+  })
+  if (!res.ok) throw new Error(`POST /question/reply failed: ${res.status}`)
+}
+
+export async function rejectQuestion(requestID: string): Promise<void> {
+  const res = await fetch(opencodeUrl(`/question/${requestID}/reject`), {
+    method: 'POST',
+    credentials: 'include',
+  })
+  if (!res.ok) throw new Error(`POST /question/reject failed: ${res.status}`)
 }
 
 /** Configured MCP servers with their connection status. */

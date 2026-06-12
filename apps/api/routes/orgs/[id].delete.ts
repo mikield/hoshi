@@ -1,4 +1,4 @@
-import { deleteOrganization, listOrganizationsForUser } from '../../utils/db'
+import { deleteOrganization, listOrganizationsForUser } from '../../db/orgs'
 import { requireMembership } from '../../utils/orgs'
 
 export default defineEventHandler(async (event) => {

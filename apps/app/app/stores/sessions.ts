@@ -4,6 +4,7 @@ import {
   unwrap,
   OPENCODE_CONNECT_ERROR,
   type OpencodeClient,
+  type OpencodeEvent,
   type SessionInfo,
 } from '~/composables/useOpencode'
 import {
@@ -37,7 +38,9 @@ export const useSessionsStore = defineStore('sessions', () => {
       sessions.value = []
       projectId.value = project
     }
-    loading.value = true
+    // Skeletons only when there's nothing to show — background refreshes
+    // (e.g. a webhook spawning a session) swap the list in place.
+    loading.value = sessions.value.length === 0
     try {
       const oc = await getClient()
       const [list, ids] = await Promise.all([oc.session.list(), fetchProjectSessionIds(project)])
@@ -94,6 +97,40 @@ export const useSessionsStore = defineStore('sessions', () => {
     sessions.value = [session, ...sessions.value.filter((s) => s.id !== session.id)]
   }
 
+  /** Sightings of root sessions we don't know — a webhook, schedule, or
+   *  another device may have filed them into this project. Debounced because
+   *  session.created races the server-side project registration by a moment. */
+  let refreshTimer: ReturnType<typeof setTimeout> | null = null
+
+  function scheduleRefresh() {
+    if (refreshTimer) clearTimeout(refreshTimer)
+    refreshTimer = setTimeout(() => {
+      refreshTimer = null
+      if (projectId.value) void load(projectId.value, true)
+    }, 500)
+  }
+
+  /** Keep the list current from the live event stream (titles, deletions,
+   *  externally-spawned sessions). */
+  function applyEvent(event: OpencodeEvent): void {
+    if (event.type === 'server.connected') {
+      // (Re)connected — anything emitted while the stream was down is gone.
+      scheduleRefresh()
+      return
+    }
+    const info = event.properties.info as SessionInfo | undefined
+    if (!info) return
+    const known = sessions.value.some((s) => s.id === info.id)
+    if (event.type === 'session.updated') {
+      if (known) sessions.value = sessions.value.map((s) => (s.id === info.id ? info : s))
+      else if (!info.parentID) scheduleRefresh()
+    } else if (event.type === 'session.deleted') {
+      sessions.value = sessions.value.filter((s) => s.id !== info.id)
+    } else if (event.type === 'session.created' && !info.parentID && !known) {
+      scheduleRefresh()
+    }
+  }
+
   function reset(): void {
     sessions.value = []
     loading.value = true
@@ -103,5 +140,5 @@ export const useSessionsStore = defineStore('sessions', () => {
     client = null
   }
 
-  return { sessions, loading, creating, connectError, load, createBlank, remove, add, reset }
+  return { sessions, loading, creating, connectError, load, createBlank, remove, add, applyEvent, reset }
 })

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watch, onMounted } from 'vue'
+import { computed, watch, onMounted, onBeforeUnmount } from 'vue'
 
 // Persistent project chrome: the sidebar + shell stay mounted while the
 // project home and session pages swap inside — navigation between them
@@ -11,8 +11,17 @@ const activeSessionId = computed(() => (route.params.sessionId as string | undef
 const store = useSessionsStore()
 const { sessions, loading, creating } = storeToRefs(store)
 
+// The sidebar owns the list, so the layout keeps it live — titles, deletions,
+// and sessions spawned externally (webhooks, schedules, other devices).
+let unsubscribe: (() => void) | null = null
+
 onMounted(() => {
   if (projectId.value) void store.load(projectId.value)
+  unsubscribe = useEventsStore().subscribe(store.applyEvent)
+})
+
+onBeforeUnmount(() => {
+  unsubscribe?.()
 })
 
 watch(projectId, (id, prev) => {

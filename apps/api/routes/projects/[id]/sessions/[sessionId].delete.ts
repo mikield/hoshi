@@ -1,4 +1,4 @@
-import { removeProjectSession } from '../../../../utils/db'
+import { removeProjectSession } from '../../../../db/projects'
 import { requireProjectAccess } from '../../../../utils/orgs'
 
 export default defineEventHandler(async (event) => {

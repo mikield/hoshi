@@ -1,4 +1,5 @@
-import { createPasswordReset, findUserByEmail } from '../../utils/db'
+import { createPasswordReset } from '../../db/resets'
+import { findUserByEmail } from '../../db/users'
 
 const APP_URL = process.env.APP_URL ?? 'http://localhost:3000'
 

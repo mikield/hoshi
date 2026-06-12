@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs'
-import { deletePasswordReset, findPasswordReset, findUserById, updateUserPassword } from '../../utils/db'
+import { deletePasswordReset, findPasswordReset } from '../../db/resets'
+import { findUserById, updateUserPassword } from '../../db/users'
 import { createSessionCookie } from '../../utils/session'
 
 export default defineEventHandler(async (event) => {

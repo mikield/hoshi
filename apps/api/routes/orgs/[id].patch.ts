@@ -1,4 +1,4 @@
-import { renameOrganization } from '../../utils/db'
+import { renameOrganization } from '../../db/orgs'
 import { requireMembership } from '../../utils/orgs'
 
 export default defineEventHandler(async (event) => {

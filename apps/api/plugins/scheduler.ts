@@ -1,4 +1,4 @@
-import { listDueSchedules, markScheduleRun } from '../utils/db'
+import { listDueSchedules, markScheduleRun } from '../db/triggers'
 import { dispatchPrompt } from '../utils/dispatch'
 
 const TICK_MS = 60_000

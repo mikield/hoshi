@@ -1,4 +1,4 @@
-import { getMembership, updateMemberRole } from '../../../../utils/db'
+import { getMembership, updateMemberRole } from '../../../../db/orgs'
 import { requireMembership } from '../../../../utils/orgs'
 
 /** Change a member's role. Owners are immutable here — ownership doesn't transfer via this route. */

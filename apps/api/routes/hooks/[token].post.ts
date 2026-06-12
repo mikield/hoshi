@@ -1,4 +1,4 @@
-import { findWebhookByToken, recordWebhookHit } from '../../utils/db'
+import { findWebhookByToken, recordWebhookHit } from '../../db/triggers'
 import { dispatchPrompt } from '../../utils/dispatch'
 
 /** Public inbound trigger — the unguessable token IS the credential. The

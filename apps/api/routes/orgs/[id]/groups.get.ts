@@ -1,4 +1,4 @@
-import { listGroups } from '../../../utils/db'
+import { listGroups } from '../../../db/groups'
 import { requireMembership } from '../../../utils/orgs'
 
 export default defineEventHandler(async (event) => {

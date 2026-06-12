@@ -1,4 +1,4 @@
-import { listInvites } from '../../../utils/db'
+import { listInvites } from '../../../db/invites'
 import { requireMembership } from '../../../utils/orgs'
 
 export default defineEventHandler(async (event) => {

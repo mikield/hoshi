@@ -1,4 +1,4 @@
-import { addMember, createOrganization } from '../../utils/db'
+import { addMember, createOrganization } from '../../db/orgs'
 import { requireAuth } from '../../utils/auth'
 
 export default defineEventHandler(async (event) => {

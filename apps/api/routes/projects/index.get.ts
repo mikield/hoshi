@@ -1,4 +1,4 @@
-import { listProjects } from '../../utils/db'
+import { listProjects } from '../../db/projects'
 import { requireMembership } from '../../utils/orgs'
 
 export default defineEventHandler(async (event) => {

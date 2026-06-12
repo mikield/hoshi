@@ -1,5 +1,5 @@
 import { requireAdmin } from '../../utils/admin'
-import { listAllOrganizations } from '../../utils/db'
+import { listAllOrganizations } from '../../db/admin'
 
 export default defineEventHandler(async (event) => {
   await requireAdmin(event)

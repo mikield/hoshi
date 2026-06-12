@@ -17,17 +17,11 @@ import { toast } from 'vue-sonner'
 import {
   createOpencodeClient,
   unwrap,
-  fetchModels,
-  fetchAgents,
-  fetchCommands,
   filePartsFrom,
   OPENCODE_MODEL,
   OPENCODE_CONNECT_ERROR,
   type OpencodeClient,
   type SessionInfo,
-  type ModelOption,
-  type AgentOption,
-  type CommandOption,
   type OutgoingFile,
 } from '~/composables/useOpencode'
 import { registerProjectSession } from '~/composables/useProjects'
@@ -60,10 +54,8 @@ const input = ref('')
 const creating = ref(false)
 const error = ref<string | null>(null)
 
-const models = ref<ModelOption[]>([])
-const agents = ref<AgentOption[]>([])
-const commands = ref<CommandOption[]>([])
-const loadingSelectors = ref(true)
+const catalog = useCatalogStore()
+const { models, agents, commands, loading: loadingSelectors } = storeToRefs(catalog)
 // Shared with the session page so the choice sticks across surfaces.
 const { selectedModel, selectedAgent } = storeToRefs(useChatStore())
 
@@ -72,30 +64,9 @@ const promptModel = computed(() => {
   return providerID && rest.length ? { providerID, modelID: rest.join('/') } : OPENCODE_MODEL
 })
 
-onMounted(async () => {
+onMounted(() => {
   void projectsStore.load()
-  // Selector data is server-global and secondary — load once, tolerate failure.
-  try {
-    client = await createOpencodeClient()
-    ;[models.value, agents.value, commands.value] = await Promise.all([
-      fetchModels(client),
-      fetchAgents(client),
-      fetchCommands(client),
-    ])
-    if (!selectedModel.value && models.value.length > 0) {
-      const fallback = `${OPENCODE_MODEL.providerID}/${OPENCODE_MODEL.modelID}`
-      const exists = models.value.some((m) => `${m.providerID}/${m.modelID}` === fallback)
-      const first = models.value[0]!
-      selectedModel.value = exists ? fallback : `${first.providerID}/${first.modelID}`
-    }
-    if (!selectedAgent.value && agents.value.length > 0) {
-      selectedAgent.value = agents.value[0]!.name
-    }
-  } catch {
-    /* composer degrades to plain input */
-  } finally {
-    loadingSelectors.value = false
-  }
+  void catalog.load()
 })
 
 /** Create a session, optionally fire the first prompt, then jump into it. */

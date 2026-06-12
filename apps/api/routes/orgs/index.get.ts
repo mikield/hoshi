@@ -1,4 +1,4 @@
-import { listOrganizationsForUser } from '../../utils/db'
+import { listOrganizationsForUser } from '../../db/orgs'
 import { requireAuth } from '../../utils/auth'
 
 export default defineEventHandler(async (event) => {

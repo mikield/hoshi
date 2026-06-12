@@ -1,4 +1,4 @@
-import { createGroup } from '../../../utils/db'
+import { createGroup } from '../../../db/groups'
 import { requireMembership } from '../../../utils/orgs'
 
 export default defineEventHandler(async (event) => {

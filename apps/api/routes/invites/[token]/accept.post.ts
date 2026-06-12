@@ -1,4 +1,5 @@
-import { addMember, deleteInvite, findInvite, isInviteExpired } from '../../../utils/db'
+import { deleteInvite, findInvite, isInviteExpired } from '../../../db/invites'
+import { addMember } from '../../../db/orgs'
 import { requireAuth } from '../../../utils/auth'
 import { ensureMachine } from '../../../utils/machines'
 

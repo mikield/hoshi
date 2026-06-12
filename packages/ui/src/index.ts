@@ -215,6 +215,7 @@ export { default as SelectScrollUpButton } from "./components/SelectScrollUpButt
 export { default as SelectScrollDownButton } from "./components/SelectScrollDownButton.vue"
 
 export { default as ChatMinimap } from "./components/ChatMinimap.vue"
+export { default as QuestionPrompt } from "./components/QuestionPrompt.vue"
 export { default as ScrollRow } from "./components/ScrollRow.vue"
 export { default as Separator } from "./components/Separator.vue"
 export { default as SidebarFlyout } from "./components/SidebarFlyout.vue"
@@ -224,6 +225,7 @@ export { default as Slider } from "./components/Slider.vue"
 
 export { default as Toaster } from "./components/Toaster.vue"
 
+export { default as StatusScreen } from "./components/StatusScreen.vue"
 export { default as StatusBadge } from "./components/StatusBadge.vue"
 export { default as StatusDot } from "./components/StatusDot.vue"
 export { default as StatPill } from "./components/StatPill.vue"

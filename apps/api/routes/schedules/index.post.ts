@@ -1,5 +1,5 @@
 import { requireAuth } from '../../utils/auth'
-import { createSchedule } from '../../utils/db'
+import { createSchedule } from '../../db/triggers'
 import { requireProjectAccess } from '../../utils/orgs'
 import { scheduleToApi, validateTriggerFields } from '../../utils/triggers'
 

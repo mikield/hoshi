@@ -1,6 +1,8 @@
 import { SignJWT, jwtVerify } from 'jose'
 import type { H3Event } from 'h3'
-import { getCookie, setCookie, deleteCookie } from 'h3'
+import { getCookie, getHeader, setCookie, deleteCookie } from 'h3'
+import { findApiTokenBySecret } from '../db/tokens'
+import { findUserById } from '../db/users'
 
 const SESSION_COOKIE = 'session'
 const SECRET = new TextEncoder().encode(process.env.SESSION_SECRET ?? 'dev-only-insecure-secret-change-me')
@@ -31,6 +33,15 @@ export function clearSessionCookie(event: H3Event) {
 }
 
 export async function getAuthSession(event: H3Event): Promise<SessionPayload | null> {
+  // Personal access tokens (CLI, scripts, Electron) ride the same auth path
+  // as cookie sessions — every guard downstream works for both.
+  const bearer = getHeader(event, 'authorization')
+  if (bearer?.startsWith('Bearer hoshi_')) {
+    const token = findApiTokenBySecret(bearer.slice('Bearer '.length))
+    const user = token && findUserById(token.user_id)
+    return user ? { userId: user.id, email: user.email } : null
+  }
+
   const token = getCookie(event, SESSION_COOKIE)
   if (!token) return null
   try {

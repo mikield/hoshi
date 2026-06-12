@@ -1,4 +1,4 @@
-import { deleteGroup } from '../../utils/db'
+import { deleteGroup } from '../../db/groups'
 import { requireGroupAccess } from '../../utils/groups'
 
 export default defineEventHandler(async (event) => {

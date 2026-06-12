@@ -1,4 +1,4 @@
-import type { ScheduleRow, WebhookRow } from './db'
+import type { ScheduleRow, WebhookRow } from '../db/triggers'
 
 /** Wire shapes for the trigger surfaces (schedules + webhooks). */
 

@@ -1,7 +1,8 @@
 import type { H3Event } from 'h3'
 import { createError } from 'h3'
 import { requireAuth } from './auth'
-import { findProject, getMembership, type OrgRole, type ProjectRow } from './db'
+import { getMembership, type OrgRole } from '../db/orgs'
+import { findProject, type ProjectRow } from '../db/projects'
 import type { SessionPayload } from './session'
 
 const ROLE_RANK: Record<OrgRole, number> = { member: 0, admin: 1, owner: 2 }

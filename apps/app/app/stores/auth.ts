@@ -50,6 +50,9 @@ export const useAuthStore = defineStore('auth', () => {
     useChatStore().reset()
     useMachineStore().reset()
     useSessionsStore().reset()
+    useCatalogStore().reset()
+    useEventsStore().reset()
+    useAlertsStore().reset()
     await navigateTo('/login')
   }
 

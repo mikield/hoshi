@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs'
-import { findUserByEmail } from '../../utils/db'
+import { findUserByEmail } from '../../db/users'
 import { createSessionCookie } from '../../utils/session'
 
 export default defineEventHandler(async (event) => {

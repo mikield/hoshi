@@ -1,4 +1,4 @@
-import { listGroupMembers } from '../../../utils/db'
+import { listGroupMembers } from '../../../db/groups'
 import { requireGroupAccess } from '../../../utils/groups'
 
 export default defineEventHandler(async (event) => {

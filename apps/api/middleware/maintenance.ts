@@ -1,6 +1,6 @@
 import { getMaintenance } from '../utils/admin'
 import { getAuthSession } from '../utils/session'
-import { findUserById } from '../utils/db'
+import { findUserById } from '../db/users'
 
 /** Paths that stay reachable during maintenance: health checks, the admin
  *  panel itself, and auth — admins must be able to sign in to lift it. */

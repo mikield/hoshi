@@ -1,5 +1,5 @@
 import { requireAdmin, getMaintenance } from '../../utils/admin'
-import { instanceCounts } from '../../utils/db'
+import { instanceCounts } from '../../db/admin'
 
 const OPENCODE_URL = process.env.OPENCODE_URL ?? 'http://localhost:4096'
 

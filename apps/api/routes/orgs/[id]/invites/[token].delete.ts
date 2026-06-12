@@ -1,4 +1,4 @@
-import { deleteInvite, findInvite } from '../../../../utils/db'
+import { deleteInvite, findInvite } from '../../../../db/invites'
 import { requireMembership } from '../../../../utils/orgs'
 
 export default defineEventHandler(async (event) => {

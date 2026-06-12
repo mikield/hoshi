@@ -1,5 +1,6 @@
 import { requireAdmin } from '../../../utils/admin'
-import { findUserById, setUserAdmin, setUserDisabled } from '../../../utils/db'
+import { setUserAdmin, setUserDisabled } from '../../../db/admin'
+import { findUserById } from '../../../db/users'
 
 export default defineEventHandler(async (event) => {
   const admin = await requireAdmin(event)

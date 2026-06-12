@@ -1,5 +1,6 @@
 import { requireAdmin } from '../../../utils/admin'
-import { deleteUser, findUserById } from '../../../utils/db'
+import { deleteUser } from '../../../db/admin'
+import { findUserById } from '../../../db/users'
 
 export default defineEventHandler(async (event) => {
   const admin = await requireAdmin(event)

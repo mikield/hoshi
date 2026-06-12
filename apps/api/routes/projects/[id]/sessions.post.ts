@@ -1,4 +1,4 @@
-import { addProjectSession, touchProject } from '../../../utils/db'
+import { addProjectSession, touchProject } from '../../../db/projects'
 import { requireProjectAccess } from '../../../utils/orgs'
 
 export default defineEventHandler(async (event) => {

@@ -1,4 +1,5 @@
-import { createMachine, findUserById, getMachineForUser, type MachineRow } from './db'
+import { createMachine, getMachineForUser, type MachineRow } from '../db/machines'
+import { findUserById } from '../db/users'
 
 const DEFAULT_UPSTREAM = process.env.OPENCODE_URL ?? 'http://localhost:4096'
 

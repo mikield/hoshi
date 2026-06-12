@@ -1,4 +1,4 @@
-import { findUserById } from '../../utils/db'
+import { findUserById } from '../../db/users'
 import { getAuthSession } from '../../utils/session'
 
 export default defineEventHandler(async (event) => {

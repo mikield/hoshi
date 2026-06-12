@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs'
-import { addMember, createOrganization, createUser, findUserByEmail, personalOrgName } from '../../utils/db'
+import { addMember, createOrganization, personalOrgName } from '../../db/orgs'
+import { createUser, findUserByEmail } from '../../db/users'
 import { ensureMachine } from '../../utils/machines'
 import { createSessionCookie } from '../../utils/session'
 

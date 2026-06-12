@@ -1,5 +1,5 @@
 import { requireAuth } from '../../utils/auth'
-import { updateMachine } from '../../utils/db'
+import { updateMachine } from '../../db/machines'
 import { ensureMachine, machineToApi } from '../../utils/machines'
 
 export default defineEventHandler(async (event) => {

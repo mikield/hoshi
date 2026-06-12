@@ -1,7 +1,7 @@
 import type { H3Event } from 'h3'
 import { createError } from 'h3'
 import { getAuthSession, type SessionPayload } from './session'
-import { findUserById } from './db'
+import { findUserById } from '../db/users'
 
 /** Resolve the signed-in user or fail the request with 401. Disabled accounts
  *  are rejected immediately, so an admin lockout takes effect mid-session. */

@@ -1,4 +1,4 @@
-import { getMembership, removeMember } from '../../../../utils/db'
+import { getMembership, removeMember } from '../../../../db/orgs'
 import { requireMembership } from '../../../../utils/orgs'
 
 /** Remove a member (admin+), or leave the organization yourself. Owners can't be removed. */

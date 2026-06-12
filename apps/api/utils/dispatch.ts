@@ -1,4 +1,4 @@
-import { addProjectSession, touchProject } from './db'
+import { addProjectSession, touchProject } from '../db/projects'
 import { ensureMachine } from './machines'
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' }

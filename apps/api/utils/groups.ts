@@ -1,8 +1,8 @@
 import type { H3Event } from 'h3'
 import { createError } from 'h3'
-import { findGroup, type GroupRow } from './db'
+import { findGroup, type GroupRow } from '../db/groups'
 import { requireMembership } from './orgs'
-import type { OrgRole } from './db'
+import type { OrgRole } from '../db/orgs'
 
 /** Resolve a group and require org membership (admin for mutations). */
 export async function requireGroupAccess(

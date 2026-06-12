@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs'
 import { requireAuth } from '../../utils/auth'
-import { findUserById } from '../../utils/db'
+import { findUserById } from '../../db/users'
 
 /** Confirm the signed-in user's password to dismiss the inactivity lock —
  *  validates without reissuing the session cookie. */

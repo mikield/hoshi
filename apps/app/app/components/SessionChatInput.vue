@@ -11,7 +11,7 @@ import {
   TooltipContent,
   cn,
 } from '@hoshi/ui'
-import { ArrowUp, FileText, Paperclip, Terminal, TextQuote, X } from 'lucide-vue-next'
+import { ArrowUp, FileText, Paperclip, Square, Terminal, TextQuote, X } from 'lucide-vue-next'
 import { segmentChatText, hasRichSegments } from '~/composables/useChatSegments'
 import type { AgentOption, CommandOption, ModelOption, OutgoingFile } from '~/composables/useOpencode'
 
@@ -33,6 +33,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   send: [text: string, files: OutgoingFile[]]
   command: [name: string, args: string]
+  /** Abort the running turn (the send button doubles as Stop while busy). */
+  stop: []
 }>()
 
 const text = defineModel<string>({ default: '' })
@@ -190,9 +192,15 @@ watch(text, () => nextTick(() => {
   refreshMentionQuery()
 }))
 
-const canSubmit = computed(
-  () => (stagedCommand.value !== null || text.value.trim().length > 0 || attachments.value.length > 0) && !props.busy,
+const hasContent = computed(
+  () => stagedCommand.value !== null || text.value.trim().length > 0 || attachments.value.length > 0,
 )
+
+// Sending while busy is allowed — the server queues the prompt for the next turn.
+const canSubmit = computed(() => hasContent.value)
+
+/** Empty composer on a busy session: the action button means Stop. */
+const showStop = computed(() => props.busy && !hasContent.value)
 
 function submit() {
   if (!canSubmit.value) return
@@ -445,13 +453,26 @@ defineExpose({ focus: () => textareaRef.value?.focus() })
           <div class="flex shrink-0 items-center gap-0">
             <TokenProgress v-if="context" :used="context.used" :limit="context.limit" />
             <Button
+              v-if="showStop"
+              size="sm"
+              variant="outline"
+              class="h-8 w-8 shrink-0 rounded-full p-0"
+              aria-label="Stop the agent"
+              title="Stop the agent"
+              @click="emit('stop')"
+            >
+              <Square class="size-3 fill-current" />
+            </Button>
+            <Button
+              v-else
               size="sm"
               :disabled="!canSubmit"
               class="h-8 w-8 shrink-0 rounded-full p-0"
+              aria-label="Send message"
+              :title="busy ? 'Queue for the next turn' : undefined"
               @click="submit"
             >
-              <div v-if="busy" class="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-              <ArrowUp v-else class="size-4" />
+              <ArrowUp class="size-4" />
             </Button>
           </div>
         </div>
