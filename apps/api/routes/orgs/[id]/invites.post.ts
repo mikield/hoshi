@@ -7,7 +7,7 @@ export default defineEventHandler(async (event) => {
   const orgId = getRouterParam(event, 'id')!
   const { session } = await requireMembership(event, orgId, 'admin')
 
-  const { email, role } = await readBody<{ email?: unknown; role?: unknown }>(event)
+  const { email, role } = await readJsonBody<{ email?: unknown; role?: unknown }>(event)
   if (typeof email !== 'string' || !email.includes('@')) {
     throw createError({ statusCode: 400, statusMessage: 'Enter a valid email address.' })
   }

@@ -28,7 +28,7 @@ const creating = ref(false)
 const saving = ref(false)
 const name = ref('')
 const prompt = ref('')
-const copiedId = ref<string | null>(null)
+const { copied: copiedId, copy } = useCopyFeedback()
 
 /** Webhooks created while a project is open file their sessions there. */
 const projectId = computed(() => (route.params.id as string | undefined) ?? null)
@@ -102,17 +102,8 @@ async function remove(webhook: WebhookTrigger) {
   }
 }
 
-async function copyUrl(webhook: WebhookTrigger) {
-  try {
-    await navigator.clipboard.writeText(hookUrl(webhook))
-  } catch {
-    toast.error('Clipboard unavailable')
-    return
-  }
-  copiedId.value = webhook.id
-  setTimeout(() => {
-    if (copiedId.value === webhook.id) copiedId.value = null
-  }, 1500)
+function copyUrl(webhook: WebhookTrigger) {
+  void copy(hookUrl(webhook), webhook.id)
 }
 </script>
 

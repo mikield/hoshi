@@ -4,7 +4,7 @@ import { findUserById, updateUserPassword } from '../../db/users'
 import { createSessionCookie } from '../../utils/session'
 
 export default defineEventHandler(async (event) => {
-  const { token, password } = await readBody<{ token?: unknown; password?: unknown }>(event)
+  const { token, password } = await readJsonBody<{ token?: unknown; password?: unknown }>(event)
 
   if (typeof password !== 'string' || password.length < 8) {
     throw createError({ statusCode: 400, statusMessage: 'Choose a password with at least 8 characters.' })

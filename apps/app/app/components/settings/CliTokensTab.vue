@@ -22,7 +22,7 @@ const saving = ref(false)
 const name = ref('')
 /** The freshly minted secret — shown exactly once, until dismissed. */
 const freshSecret = ref<string | null>(null)
-const copied = ref(false)
+const { copied, copy } = useCopyFeedback()
 
 onMounted(load)
 
@@ -66,25 +66,8 @@ async function revoke(token: ApiToken) {
   }
 }
 
-async function copySecret() {
-  if (!freshSecret.value) return
-  try {
-    await navigator.clipboard.writeText(freshSecret.value)
-  } catch {
-    toast.error('Clipboard unavailable')
-    return
-  }
-  copied.value = true
-  setTimeout(() => (copied.value = false), 1500)
-}
-
-function localDate(value: string | null): string {
-  if (!value) return 'never'
-  return new Date(`${value.replace(' ', 'T')}Z`).toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
+function copySecret() {
+  if (freshSecret.value) void copy(freshSecret.value)
 }
 </script>
 
@@ -153,7 +136,7 @@ function localDate(value: string | null): string {
             <code class="shrink-0 font-mono text-xs text-muted-foreground/60">{{ token.prefix }}…</code>
           </div>
           <p class="mt-0.5 text-xs text-muted-foreground/60">
-            Created {{ localDate(token.createdAt) }} · last used {{ localDate(token.lastUsedAt) }}
+            Created {{ formatDay(token.createdAt) }} · last used {{ formatDay(token.lastUsedAt, 'never') }}
           </p>
         </div>
         <Button

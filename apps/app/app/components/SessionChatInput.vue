@@ -192,18 +192,13 @@ watch(text, () => nextTick(() => {
   refreshMentionQuery()
 }))
 
+// Sending while busy is allowed — the server queues the prompt for the next turn.
 const hasContent = computed(
   () => stagedCommand.value !== null || text.value.trim().length > 0 || attachments.value.length > 0,
 )
 
-// Sending while busy is allowed — the server queues the prompt for the next turn.
-const canSubmit = computed(() => hasContent.value)
-
-/** Empty composer on a busy session: the action button means Stop. */
-const showStop = computed(() => props.busy && !hasContent.value)
-
 function submit() {
-  if (!canSubmit.value) return
+  if (!hasContent.value) return
   if (stagedCommand.value) {
     emit('command', stagedCommand.value.name, text.value.trim())
     stagedCommand.value = null
@@ -450,10 +445,11 @@ defineExpose({ focus: () => textareaRef.value?.focus() })
             </template>
           </div>
 
-          <div class="flex shrink-0 items-center gap-0">
+          <div class="flex shrink-0 items-center gap-1">
             <TokenProgress v-if="context" :used="context.used" :limit="context.limit" />
+            <!-- Stop is always reachable while the agent runs — even mid-draft. -->
             <Button
-              v-if="showStop"
+              v-if="busy"
               size="sm"
               variant="outline"
               class="h-8 w-8 shrink-0 rounded-full p-0"
@@ -464,9 +460,9 @@ defineExpose({ focus: () => textareaRef.value?.focus() })
               <Square class="size-3 fill-current" />
             </Button>
             <Button
-              v-else
+              v-if="!busy || hasContent"
               size="sm"
-              :disabled="!canSubmit"
+              :disabled="!hasContent"
               class="h-8 w-8 shrink-0 rounded-full p-0"
               aria-label="Send message"
               :title="busy ? 'Queue for the next turn' : undefined"

@@ -12,12 +12,17 @@ export interface User {
   created_at: string
 }
 
+// Prepared once — these two run on (nearly) every authenticated request, and
+// better-sqlite3 recompiles the SQL on each prepare().
+const selectByEmail = db.prepare('SELECT * FROM users WHERE email = ?')
+const selectById = db.prepare('SELECT * FROM users WHERE id = ?')
+
 export function findUserByEmail(email: string): User | undefined {
-  return db.prepare('SELECT * FROM users WHERE email = ?').get(email) as User | undefined
+  return selectByEmail.get(email) as User | undefined
 }
 
 export function findUserById(id: number): User | undefined {
-  return db.prepare('SELECT * FROM users WHERE id = ?').get(id) as User | undefined
+  return selectById.get(id) as User | undefined
 }
 
 export function updateUserName(id: number, name: string | null): User | undefined {

@@ -62,13 +62,6 @@ function cadenceLabel(minutes: number): string {
   return preset?.label ?? `Every ${minutes} min`
 }
 
-/** "2026-06-11 12:00:00" (SQLite UTC) → local short time. */
-function localTime(value: string | null): string {
-  if (!value) return '—'
-  const date = new Date(`${value.replace(' ', 'T')}Z`)
-  return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-}
-
 onMounted(load)
 
 async function load() {
@@ -218,8 +211,8 @@ async function remove(schedule: Schedule) {
               </div>
               <p class="mt-1 truncate text-xs text-muted-foreground">{{ schedule.prompt }}</p>
               <p class="mt-1 text-xs text-muted-foreground/60">
-                {{ schedule.enabled ? `Next run ${localTime(schedule.nextRunAt)}` : 'Paused' }}
-                <template v-if="schedule.lastRunAt"> · last ran {{ localTime(schedule.lastRunAt) }}</template>
+                {{ schedule.enabled ? `Next run ${formatMoment(schedule.nextRunAt)}` : 'Paused' }}
+                <template v-if="schedule.lastRunAt"> · last ran {{ formatMoment(schedule.lastRunAt) }}</template>
               </p>
             </div>
             <Switch

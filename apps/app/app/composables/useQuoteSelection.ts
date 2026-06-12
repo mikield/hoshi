@@ -22,9 +22,17 @@ export function useQuoteSelection(containerRef: Ref<HTMLElement | null>, quote: 
     requestAnimationFrame(() => {
       const selection = window.getSelection()
       const text = selection?.toString().trim() ?? ''
-      if (!selection || selection.rangeCount === 0 || text.length < 3) return
+      // Any disqualified selection clears the button — otherwise it would
+      // keep floating at the OLD position offering the OLD text.
+      if (!selection || selection.rangeCount === 0 || text.length < 3) {
+        selectionQuote.value = null
+        return
+      }
       const range = selection.getRangeAt(0)
-      if (!containerRef.value?.contains(range.commonAncestorContainer)) return
+      if (!containerRef.value?.contains(range.commonAncestorContainer)) {
+        selectionQuote.value = null
+        return
+      }
       const rect = range.getBoundingClientRect()
       selectionQuote.value = { x: rect.left + rect.width / 2, y: rect.top, text: text.slice(0, 1000) }
     })

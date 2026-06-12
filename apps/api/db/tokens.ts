@@ -42,11 +42,19 @@ export function deleteApiToken(userId: number, id: string): boolean {
   return db.prepare('DELETE FROM api_tokens WHERE id = ? AND user_id = ?').run(id, userId).changes > 0
 }
 
-/** Resolve a presented bearer secret to its token row, stamping last use. */
+// Prepared once — this is the per-request hot path for bearer auth.
+const selectByHash = db.prepare('SELECT * FROM api_tokens WHERE token_hash = ?')
+const stampLastUsed = db.prepare("UPDATE api_tokens SET last_used_at = datetime('now') WHERE id = ?")
+
+/** Stamping more often than this adds a write per request for a display field. */
+const LAST_USED_GRANULARITY_MS = 60_000
+
+/** Resolve a presented bearer secret to its token row, stamping last use
+ *  (coarsely — "last used" is informational, not an audit log). */
 export function findApiTokenBySecret(secret: string): ApiTokenRow | undefined {
-  const token = db
-    .prepare('SELECT * FROM api_tokens WHERE token_hash = ?')
-    .get(hashToken(secret)) as ApiTokenRow | undefined
-  if (token) db.prepare("UPDATE api_tokens SET last_used_at = datetime('now') WHERE id = ?").run(token.id)
+  const token = selectByHash.get(hashToken(secret)) as ApiTokenRow | undefined
+  if (!token) return undefined
+  const last = token.last_used_at ? new Date(`${token.last_used_at.replace(' ', 'T')}Z`).getTime() : 0
+  if (Date.now() - last > LAST_USED_GRANULARITY_MS) stampLastUsed.run(token.id)
   return token
 }

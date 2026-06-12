@@ -70,8 +70,11 @@ export function instanceCounts(): { users: number; organizations: number; projec
   }
 }
 
+// Prepared once — the maintenance middleware reads a setting on every request.
+const selectSetting = db.prepare('SELECT value FROM instance_settings WHERE key = ?')
+
 export function getSetting(key: string): string | null {
-  return (db.prepare('SELECT value FROM instance_settings WHERE key = ?').get(key) as { value: string } | undefined)?.value ?? null
+  return (selectSetting.get(key) as { value: string } | undefined)?.value ?? null
 }
 
 export function setSetting(key: string, value: string): void {

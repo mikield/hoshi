@@ -8,7 +8,7 @@ const MAX_INTERVAL = 60 * 24 * 30
 
 export default defineEventHandler(async (event) => {
   const session = await requireAuth(event)
-  const body = await readBody<{
+  const body = await readJsonBody<{
     name?: unknown
     prompt?: unknown
     intervalMinutes?: unknown

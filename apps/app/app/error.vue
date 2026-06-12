@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import type { NuxtError } from '#app'
 import { Button, StatusScreen } from '@hoshi/ui'
-import { ArrowLeft, RefreshCw, Wrench } from 'lucide-vue-next'
+import { ArrowLeft, RefreshCw } from 'lucide-vue-next'
 
 const props = defineProps<{ error: NuxtError }>()
 
@@ -34,13 +34,12 @@ function retry() {
 </script>
 
 <template>
-  <StatusScreen :glyph="isMaintenance ? undefined : String(error.statusCode)" :title="title" :description="description">
-    <template v-if="isMaintenance" #icon>
-      <span class="flex size-20 items-center justify-center rounded-2xl border border-amber-500/20 bg-amber-500/10">
-        <Wrench class="size-9 text-amber-500" />
-      </span>
-    </template>
-
+  <StatusScreen
+    :glyph="isMaintenance ? undefined : String(error.statusCode)"
+    :variant="isMaintenance ? 'maintenance' : undefined"
+    :title="title"
+    :description="description"
+  >
     <template #actions>
       <Button size="lg" class="h-12 gap-2 rounded-full" @click="goHome">
         <ArrowLeft class="size-4" />

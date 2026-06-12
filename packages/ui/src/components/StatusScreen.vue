@@ -1,14 +1,17 @@
 <script setup lang="ts">
+import { Wrench } from 'lucide-vue-next'
 import { cn } from '../lib/utils'
 import Logo from './Logo.vue'
 
 /** Full-screen status surface shared by the error page and the maintenance
- *  overlay: faint oversized glyph (or an icon tile via the #icon slot), title,
- *  description, optional extra content and actions — over a quiet noise
- *  texture so the family of "the app can't continue" screens reads as one. */
+ *  overlay: faint oversized glyph (or an icon tile), title, description,
+ *  optional extra content and actions — over a quiet noise texture so the
+ *  family of "the app can't continue" screens reads as one. */
 const props = defineProps<{
-  /** Oversized background numeral/text, e.g. "404". Omit when using #icon. */
+  /** Oversized background numeral/text, e.g. "404". Omit when using a variant or #icon. */
   glyph?: string
+  /** 'maintenance' renders the shared amber wrench tile — one face everywhere. */
+  variant?: 'maintenance'
   title: string
   description?: string
   class?: string
@@ -31,6 +34,12 @@ const NOISE = `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http:
       <p v-if="glyph" class="select-none font-mono text-7xl font-bold leading-none tracking-tighter text-foreground/[0.07] sm:text-8xl">
         {{ glyph }}
       </p>
+      <span
+        v-if="variant === 'maintenance'"
+        class="flex size-20 items-center justify-center rounded-2xl border border-amber-500/20 bg-amber-500/10"
+      >
+        <Wrench class="size-9 text-amber-500" />
+      </span>
       <slot name="icon" />
 
       <div class="space-y-3">

@@ -3,7 +3,7 @@ import { findUserByEmail } from '../../db/users'
 import { createSessionCookie } from '../../utils/session'
 
 export default defineEventHandler(async (event) => {
-  const { email, password } = await readBody<{ email?: unknown; password?: unknown }>(event)
+  const { email, password } = await readJsonBody<{ email?: unknown; password?: unknown }>(event)
 
   if (typeof email !== 'string' || typeof password !== 'string') {
     setResponseStatus(event, 400)

@@ -10,7 +10,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'Webhook not found.' })
   }
 
-  const body = await readBody<{ name?: unknown; prompt?: unknown; enabled?: unknown }>(event)
+  const body = await readJsonBody<{ name?: unknown; prompt?: unknown; enabled?: unknown }>(event)
   const fields: Parameters<typeof updateWebhook>[1] = {}
 
   if (typeof body.name === 'string' && body.name.trim()) fields.name = body.name.trim().slice(0, 120)

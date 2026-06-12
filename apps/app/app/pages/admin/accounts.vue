@@ -104,14 +104,6 @@ async function confirmDelete() {
 function onDeleteDialogOpen(open: boolean) {
   if (!open) deleting.value = null
 }
-
-function formatDate(value: string): string {
-  return new Date(`${value.replace(' ', 'T')}Z`).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
-}
 </script>
 
 <template>
@@ -183,7 +175,7 @@ function formatDate(value: string): string {
               <td class="px-4 py-3">
                 <Badge :variant="account.disabled ? 'destructive' : 'outline'">{{ account.disabled ? 'Disabled' : 'Active' }}</Badge>
               </td>
-              <td class="px-4 py-3 text-xs text-muted-foreground">{{ formatDate(account.created_at) }}</td>
+              <td class="px-4 py-3 text-xs text-muted-foreground">{{ formatDay(account.created_at) }}</td>
               <td class="px-2 py-3">
                 <DropdownMenu v-if="account.id !== me?.id">
                   <DropdownMenuTrigger as-child>
@@ -233,7 +225,7 @@ function formatDate(value: string): string {
               </td>
               <td class="px-4 py-3 text-right tabular-nums">{{ org.member_count }}</td>
               <td class="px-4 py-3 text-right tabular-nums">{{ org.project_count }}</td>
-              <td class="px-4 py-3 text-xs text-muted-foreground">{{ formatDate(org.created_at) }}</td>
+              <td class="px-4 py-3 text-xs text-muted-foreground">{{ formatDay(org.created_at) }}</td>
             </tr>
           </tbody>
         </table>

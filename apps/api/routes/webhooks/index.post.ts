@@ -5,7 +5,7 @@ import { validateTriggerFields, webhookToApi } from '../../utils/triggers'
 
 export default defineEventHandler(async (event) => {
   const session = await requireAuth(event)
-  const body = await readBody<{ name?: unknown; prompt?: unknown; projectId?: unknown }>(event)
+  const body = await readJsonBody<{ name?: unknown; prompt?: unknown; projectId?: unknown }>(event)
   const { name, prompt } = validateTriggerFields(body.name, body.prompt)
 
   let projectId: string | null = null

@@ -75,7 +75,7 @@ const inviteRole = ref<'member' | 'admin'>('member')
 const inviteSubmitting = ref(false)
 /** Set once the invite is created — the dialog flips to "share this link". */
 const inviteUrl = ref<string | null>(null)
-const copied = ref(false)
+const { copied, copy } = useCopyFeedback()
 
 watch(inviteOpen, (open) => {
   if (!open) {
@@ -83,7 +83,7 @@ watch(inviteOpen, (open) => {
     inviteRole.value = 'member'
     inviteSubmitting.value = false
     inviteUrl.value = null
-    copied.value = false
+    copied.value = null
   }
 })
 
@@ -107,10 +107,7 @@ async function submitInvite() {
 }
 
 async function copyInviteUrl(url: string) {
-  await navigator.clipboard.writeText(url)
-  copied.value = true
-  toast.success('Invite link copied')
-  setTimeout(() => (copied.value = false), 1500)
+  if (await copy(url)) toast.success('Invite link copied')
 }
 
 async function revoke(invite: OrgInvite) {

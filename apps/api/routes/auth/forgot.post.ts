@@ -6,7 +6,7 @@ const APP_URL = process.env.APP_URL ?? 'http://localhost:3000'
 /** Always answers ok — whether the account exists is never disclosed. Until
  *  SMTP is configured the reset link goes to the server log instead of email. */
 export default defineEventHandler(async (event) => {
-  const { email } = await readBody<{ email?: unknown }>(event)
+  const { email } = await readJsonBody<{ email?: unknown }>(event)
   if (typeof email !== 'string' || !email.includes('@')) {
     throw createError({ statusCode: 400, statusMessage: 'Enter a valid email address.' })
   }

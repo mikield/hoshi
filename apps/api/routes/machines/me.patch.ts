@@ -4,7 +4,7 @@ import { ensureMachine, machineToApi } from '../../utils/machines'
 
 export default defineEventHandler(async (event) => {
   const session = await requireAuth(event)
-  const { name, upstreamUrl } = await readBody<{ name?: unknown; upstreamUrl?: unknown }>(event)
+  const { name, upstreamUrl } = await readJsonBody<{ name?: unknown; upstreamUrl?: unknown }>(event)
 
   const fields: { name?: string; upstream_url?: string } = {}
 

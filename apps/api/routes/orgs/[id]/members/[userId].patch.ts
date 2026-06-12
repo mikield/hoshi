@@ -7,7 +7,7 @@ export default defineEventHandler(async (event) => {
   const userId = Number(getRouterParam(event, 'userId'))
   await requireMembership(event, orgId, 'admin')
 
-  const { role } = await readBody<{ role?: unknown }>(event)
+  const { role } = await readJsonBody<{ role?: unknown }>(event)
   if (role !== 'admin' && role !== 'member') {
     throw createError({ statusCode: 400, statusMessage: 'Role must be admin or member.' })
   }

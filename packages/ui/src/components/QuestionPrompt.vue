@@ -34,16 +34,16 @@ const emit = defineEmits<{
 
 const tab = ref(0)
 const answers = ref<string[][]>(props.questions.map(() => []))
-const replying = ref(false)
 
 const current = computed(() => props.questions[tab.value])
-const isSingle = computed(() => props.questions.length === 1 && !props.questions[0]!.multiple)
 const isLast = computed(() => tab.value === props.questions.length - 1)
 const selected = computed(() => answers.value[tab.value] ?? [])
 const acceptsCustom = computed(() => current.value?.custom !== false)
 
+// The card stays interactive until the PARENT confirms the reply landed and
+// unmounts it — latching a local "replying" flag would brick the card (and
+// silently eat composer answers) the first time a reply request failed.
 function submit() {
-  replying.value = true
   emit('reply', props.requestId, props.questions.map((_, i) => answers.value[i] ?? []))
 }
 
@@ -62,7 +62,6 @@ function toggle(label: string) {
 }
 
 function choose(option: QuestionOption) {
-  if (replying.value) return
   if (current.value?.multiple) toggle(option.label)
   else pick(option.label)
 }
@@ -73,28 +72,14 @@ function next() {
   else tab.value += 1
 }
 
-/** Free text from the main composer — selects it as the answer. */
-function submitCustom(text: string) {
-  const trimmed = text.trim()
-  if (!trimmed || replying.value) return
-  if (current.value?.multiple) {
-    if (!selected.value.includes(trimmed)) toggle(trimmed)
-    return
-  }
-  pick(trimmed)
-}
-
 function reject() {
-  replying.value = true
   emit('reject', props.requestId)
 }
-
-defineExpose({ submitCustom, acceptsCustom })
 </script>
 
 <template>
   <div
-    v-if="!replying && current"
+    v-if="current"
     class="overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm animate-in fade-in-0 slide-in-from-bottom-2 duration-200"
   >
     <!-- Header -->

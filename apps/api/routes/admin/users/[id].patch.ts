@@ -8,7 +8,7 @@ export default defineEventHandler(async (event) => {
   const target = findUserById(id)
   if (!target) throw createError({ statusCode: 404, statusMessage: 'User not found.' })
 
-  const { disabled, isAdmin } = await readBody<{ disabled?: unknown; isAdmin?: unknown }>(event)
+  const { disabled, isAdmin } = await readJsonBody<{ disabled?: unknown; isAdmin?: unknown }>(event)
 
   if (typeof disabled === 'boolean') {
     if (id === admin.id) throw createError({ statusCode: 400, statusMessage: "You can't disable your own account." })

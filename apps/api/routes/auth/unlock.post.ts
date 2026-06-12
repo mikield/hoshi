@@ -6,7 +6,7 @@ import { findUserById } from '../../db/users'
  *  validates without reissuing the session cookie. */
 export default defineEventHandler(async (event) => {
   const session = await requireAuth(event)
-  const { password } = await readBody<{ password?: unknown }>(event)
+  const { password } = await readJsonBody<{ password?: unknown }>(event)
 
   if (typeof password !== 'string' || password.length === 0) {
     setResponseStatus(event, 400)

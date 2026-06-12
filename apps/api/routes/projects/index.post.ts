@@ -2,7 +2,7 @@ import { createProject } from '../../db/projects'
 import { requireMembership } from '../../utils/orgs'
 
 export default defineEventHandler(async (event) => {
-  const { name, orgId } = await readBody<{ name?: unknown; orgId?: unknown }>(event)
+  const { name, orgId } = await readJsonBody<{ name?: unknown; orgId?: unknown }>(event)
   if (typeof orgId !== 'string' || !orgId) {
     throw createError({ statusCode: 400, statusMessage: 'orgId is required.' })
   }

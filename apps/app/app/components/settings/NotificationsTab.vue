@@ -1,11 +1,19 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
+import type { Component } from 'vue'
 import { Button, Switch } from '@hoshi/ui'
 import { Bell, CircleAlert, MessageCircleQuestion, Send, Sparkles } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
+import type { AlertPrefs } from '~/stores/alerts'
 
 const alerts = useAlertsStore()
 const { prefs } = storeToRefs(alerts)
+
+const TYPES: { icon: Component; label: string; description: string; pref: keyof AlertPrefs }[] = [
+  { icon: Sparkles, label: 'Session finished', description: 'The agent completed a turn while you were away.', pref: 'notifyComplete' },
+  { icon: MessageCircleQuestion, label: 'Needs your input', description: 'The agent asked a question and is waiting.', pref: 'notifyInput' },
+  { icon: CircleAlert, label: 'Errors', description: 'A session failed or lost its connection.', pref: 'notifyError' },
+]
 
 // Resolved on mount — Notification doesn't exist during SSR.
 const permission = ref<NotificationPermission | 'unsupported'>('unsupported')
@@ -61,35 +69,20 @@ function sendTest() {
 
     <!-- Per-type toggles -->
     <div class="divide-y rounded-2xl border" :class="!prefs.notifications && 'opacity-50'">
-      <div class="flex items-start justify-between gap-4 px-4 py-3">
+      <div v-for="row in TYPES" :key="row.pref" class="flex items-start justify-between gap-4 px-4 py-3">
         <div class="flex flex-1 items-start gap-3">
-          <Sparkles class="mt-0.5 h-4 w-4 text-muted-foreground" />
+          <component :is="row.icon" class="mt-0.5 h-4 w-4 text-muted-foreground" />
           <div class="flex-1 space-y-0.5">
-            <div class="text-sm font-medium">Session finished</div>
-            <p class="text-xs text-muted-foreground">The agent completed a turn while you were away.</p>
+            <div class="text-sm font-medium">{{ row.label }}</div>
+            <p class="text-xs text-muted-foreground">{{ row.description }}</p>
           </div>
         </div>
-        <Switch v-model="prefs.notifyComplete" :disabled="!prefs.notifications" aria-label="Notify when a session finishes" />
-      </div>
-      <div class="flex items-start justify-between gap-4 px-4 py-3">
-        <div class="flex flex-1 items-start gap-3">
-          <MessageCircleQuestion class="mt-0.5 h-4 w-4 text-muted-foreground" />
-          <div class="flex-1 space-y-0.5">
-            <div class="text-sm font-medium">Needs your input</div>
-            <p class="text-xs text-muted-foreground">The agent asked a question and is waiting.</p>
-          </div>
-        </div>
-        <Switch v-model="prefs.notifyInput" :disabled="!prefs.notifications" aria-label="Notify when the agent needs input" />
-      </div>
-      <div class="flex items-start justify-between gap-4 px-4 py-3">
-        <div class="flex flex-1 items-start gap-3">
-          <CircleAlert class="mt-0.5 h-4 w-4 text-muted-foreground" />
-          <div class="flex-1 space-y-0.5">
-            <div class="text-sm font-medium">Errors</div>
-            <p class="text-xs text-muted-foreground">A session failed or lost its connection.</p>
-          </div>
-        </div>
-        <Switch v-model="prefs.notifyError" :disabled="!prefs.notifications" aria-label="Notify on errors" />
+        <Switch
+          :model-value="Boolean(prefs[row.pref])"
+          :disabled="!prefs.notifications"
+          :aria-label="`Notify: ${row.label}`"
+          @update:model-value="(value) => ((prefs[row.pref] as boolean) = Boolean(value))"
+        />
       </div>
     </div>
 

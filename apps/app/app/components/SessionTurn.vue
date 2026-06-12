@@ -13,7 +13,6 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from '@hoshi/ui'
-import { toast } from 'vue-sonner'
 import {
   Check,
   Copy,
@@ -75,21 +74,11 @@ const responseText = computed(() =>
 
 // ── Copy actions ─────────────────────────────────────────────────────────────
 
-const copied = ref<'user' | 'assistant' | null>(null)
+const { copied, copy: copyText } = useCopyFeedback()
 
-async function copy(which: 'user' | 'assistant') {
+function copy(which: 'user' | 'assistant') {
   const content = which === 'user' ? userText.value : responseText.value
-  if (!content) return
-  try {
-    await navigator.clipboard.writeText(content)
-  } catch {
-    toast.error('Clipboard unavailable')
-    return
-  }
-  copied.value = which
-  setTimeout(() => {
-    if (copied.value === which) copied.value = null
-  }, 1500)
+  if (content) void copyText(content, which)
 }
 
 // ── Media preview ────────────────────────────────────────────────────────────

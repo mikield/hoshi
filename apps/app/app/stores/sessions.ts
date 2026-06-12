@@ -111,7 +111,10 @@ export const useSessionsStore = defineStore('sessions', () => {
   }
 
   /** Keep the list current from the live event stream (titles, deletions,
-   *  externally-spawned sessions). */
+   *  externally-spawned sessions). Unknown-session UPDATES are deliberately
+   *  ignored — sessions in other projects emit them constantly, and refreshing
+   *  on each would refetch the list forever; creation and reconnects cover
+   *  every case where this project can actually gain a session. */
   function applyEvent(event: OpencodeEvent): void {
     if (event.type === 'server.connected') {
       // (Re)connected — anything emitted while the stream was down is gone.
@@ -120,13 +123,11 @@ export const useSessionsStore = defineStore('sessions', () => {
     }
     const info = event.properties.info as SessionInfo | undefined
     if (!info) return
-    const known = sessions.value.some((s) => s.id === info.id)
     if (event.type === 'session.updated') {
-      if (known) sessions.value = sessions.value.map((s) => (s.id === info.id ? info : s))
-      else if (!info.parentID) scheduleRefresh()
+      sessions.value = sessions.value.map((s) => (s.id === info.id ? info : s))
     } else if (event.type === 'session.deleted') {
       sessions.value = sessions.value.filter((s) => s.id !== info.id)
-    } else if (event.type === 'session.created' && !info.parentID && !known) {
+    } else if (event.type === 'session.created' && !info.parentID && !sessions.value.some((s) => s.id === info.id)) {
       scheduleRefresh()
     }
   }
@@ -140,5 +141,5 @@ export const useSessionsStore = defineStore('sessions', () => {
     client = null
   }
 
-  return { sessions, loading, creating, connectError, load, createBlank, remove, add, applyEvent, reset }
+  return { sessions, loading, creating, connectError, projectId, load, createBlank, remove, add, applyEvent, reset }
 })

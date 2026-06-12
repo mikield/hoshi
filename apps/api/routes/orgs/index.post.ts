@@ -3,7 +3,7 @@ import { requireAuth } from '../../utils/auth'
 
 export default defineEventHandler(async (event) => {
   const session = await requireAuth(event)
-  const { name } = await readBody<{ name?: unknown }>(event)
+  const { name } = await readJsonBody<{ name?: unknown }>(event)
   if (typeof name !== 'string' || !name.trim() || name.trim().length > 120) {
     throw createError({ statusCode: 400, statusMessage: 'Enter an organization name (1–120 characters).' })
   }

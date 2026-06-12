@@ -8,11 +8,9 @@ type Handler = (event: OpencodeEvent) => void
 export const useEventsStore = defineStore('events', () => {
   const handlers = new Set<Handler>()
   let abort: AbortController | null = null
-  let started = false
 
   function start() {
-    if (started || import.meta.server) return
-    started = true
+    if (abort || import.meta.server) return
     abort = new AbortController()
     void streamEvents(opencodeUrl('/event'), fanOut, abort.signal)
   }
@@ -44,7 +42,6 @@ export const useEventsStore = defineStore('events', () => {
   function reset() {
     abort?.abort()
     abort = null
-    started = false
     handlers.clear()
   }
 
