@@ -8,6 +8,25 @@ export function opencodeUrl(path = ''): string {
   return apiUrl(`/opencode${path}`)
 }
 
+/** Transport for every OpenCode call (SDK and plain): credentialed, and a 503
+ *  raises the maintenance overlay — the proxy 503s during maintenance, and
+ *  without this hook the most-used surface would never show the screen. */
+export function opencodeFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  return fetch(input, { credentials: 'include', ...init }).then((res) => {
+    if (res.status === 503) useMaintenanceStore().raise()
+    return res
+  })
+}
+
+/** JSON request against the OpenCode proxy — shared by every non-SDK helper. */
+async function ocJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await opencodeFetch(opencodeUrl(path), init)
+  if (!res.ok) throw new Error(`${init?.method ?? 'GET'} ${path} failed: ${res.status}`)
+  // Some endpoints (reply/reject) answer with an empty body.
+  const text = await res.text()
+  return (text ? JSON.parse(text) : undefined) as T
+}
+
 export type SessionInfo = {
   id: string
   title?: string
@@ -113,7 +132,7 @@ export async function createOpencodeClient(): Promise<any> {
   // Resolve before the await — runtime config needs the Nuxt context.
   const baseUrl = opencodeUrl()
   const { createOpencodeClient: factory } = await import('@opencode-ai/sdk/client')
-  return factory({ baseUrl, credentials: 'include' })
+  return factory({ baseUrl, credentials: 'include', fetch: opencodeFetch })
 }
 
 export function partsText(parts: Part[]): string {
@@ -233,8 +252,7 @@ export async function streamEvents(
       watchdog = setTimeout(() => attempt.abort(), STREAM_WATCHDOG_MS)
     }
     try {
-      const res = await fetch(url, {
-        credentials: 'include',
+      const res = await opencodeFetch(url, {
         headers: { accept: 'text/event-stream' },
         signal: attempt.signal,
       })
@@ -316,9 +334,7 @@ export async function fetchCommands(client: OpencodeClient): Promise<CommandOpti
 
 /** Skills installed on the server. Plain fetch — the SDK has no skill namespace. */
 export async function fetchSkills(): Promise<SkillInfo[]> {
-  const res = await fetch(opencodeUrl('/skill'), { credentials: 'include' })
-  if (!res.ok) throw new Error(`GET /skill failed: ${res.status}`)
-  const skills = (await res.json()) as Array<{ name: string; description?: string }>
+  const skills = await ocJson<Array<{ name: string; description?: string }>>('/skill')
   return skills.map(({ name, description }) => ({ name, description }))
 }
 
@@ -339,23 +355,19 @@ export type CommandConfigPatch = {
 }
 
 /** The machine's global OpenCode config — the source of truth Customize edits. */
-export async function fetchGlobalConfig(): Promise<Record<string, any>> {
-  const res = await fetch(opencodeUrl('/global/config'), { credentials: 'include' })
-  if (!res.ok) throw new Error(`GET /global/config failed: ${res.status}`)
-  return res.json()
+export function fetchGlobalConfig(): Promise<Record<string, any>> {
+  return ocJson('/global/config')
 }
 
 /** Merge a partial config into the machine's global config (persists on the
  *  machine and takes effect immediately). Note: merge-only — the OpenCode API
  *  has no key deletion, so "remove" is expressed as `disable` where supported. */
 export async function patchGlobalConfig(patch: Record<string, unknown>): Promise<void> {
-  const res = await fetch(opencodeUrl('/global/config'), {
+  await ocJson('/global/config', {
     method: 'PATCH',
-    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(patch),
   })
-  if (!res.ok) throw new Error(`PATCH /global/config failed: ${res.status}`)
 }
 
 // ── Questions — the agent asking the user to choose ──────────────────────────
@@ -382,36 +394,26 @@ export type QuestionRequest = {
 
 /** All pending question requests on the server — the replay source when a
  *  session opens while the agent is waiting on an answer. */
-export async function fetchQuestions(): Promise<QuestionRequest[]> {
-  const res = await fetch(opencodeUrl('/question'), { credentials: 'include' })
-  if (!res.ok) throw new Error(`GET /question failed: ${res.status}`)
-  return res.json()
+export function fetchQuestions(): Promise<QuestionRequest[]> {
+  return ocJson('/question')
 }
 
 /** One answers array per question, each holding the selected labels. */
 export async function replyQuestion(requestID: string, answers: string[][]): Promise<void> {
-  const res = await fetch(opencodeUrl(`/question/${requestID}/reply`), {
+  await ocJson(`/question/${requestID}/reply`, {
     method: 'POST',
-    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ answers }),
   })
-  if (!res.ok) throw new Error(`POST /question/reply failed: ${res.status}`)
 }
 
 export async function rejectQuestion(requestID: string): Promise<void> {
-  const res = await fetch(opencodeUrl(`/question/${requestID}/reject`), {
-    method: 'POST',
-    credentials: 'include',
-  })
-  if (!res.ok) throw new Error(`POST /question/reject failed: ${res.status}`)
+  await ocJson(`/question/${requestID}/reject`, { method: 'POST' })
 }
 
 /** Configured MCP servers with their connection status. */
 export async function fetchMcpServers(): Promise<McpServerInfo[]> {
-  const res = await fetch(opencodeUrl('/mcp'), { credentials: 'include' })
-  if (!res.ok) throw new Error(`GET /mcp failed: ${res.status}`)
-  const servers = (await res.json()) as Record<string, { status: string }>
+  const servers = await ocJson<Record<string, { status: string }>>('/mcp')
   return Object.entries(servers).map(([name, info]) => ({ name, status: info.status }))
 }
 
@@ -434,16 +436,14 @@ export function contextUsage(
   messages: ChatMessage[],
   models: ModelOption[],
 ): { used: number; limit: number } | null {
-  const latest = [...messages]
-    .reverse()
-    .find((m) => m.info.role === 'assistant' && m.info.tokens && tokensInWindow(m.info.tokens) > 0)
-  if (!latest) return null
-  const used = tokensInWindow(latest.info.tokens!)
-  const model = models.find(
-    (m) => m.providerID === latest.info.providerID && m.modelID === latest.info.modelID,
-  )
-  if (!model?.contextLimit) return null
-  return { used, limit: model.contextLimit }
+  // Backwards loop, no copies — this recomputes on every streamed event.
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const { info } = messages[i]!
+    if (info.role !== 'assistant' || !info.tokens || tokensInWindow(info.tokens) === 0) continue
+    const model = models.find((m) => m.providerID === info.providerID && m.modelID === info.modelID)
+    return model?.contextLimit ? { used: tokensInWindow(info.tokens), limit: model.contextLimit } : null
+  }
+  return null
 }
 
 /** SDK calls return either the payload directly or `{ data }` — normalize both. */

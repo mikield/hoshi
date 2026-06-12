@@ -112,11 +112,14 @@ export function useSessionThread(
       }
       // Queued prompts may not be persisted until their turn starts — keep
       // optimistic locals visible unless the server already has their text.
+      // (Text equality is a heuristic; it can drop a deliberately repeated
+      // queued prompt from view, but the server still runs it.)
       const serverTexts = new Set(list.filter((m) => m.info.role === 'user').map((m) => partsText(m.parts)))
       const locals = messages.value.filter(
         (m) => m.info.id.startsWith('local-') && !serverTexts.has(partsText(m.parts)),
       )
       messages.value = [...list, ...locals]
+      contentVersion.value++
       syncSelectorsToSession(list)
     } catch {
       messages.value = []
@@ -157,8 +160,10 @@ export function useSessionThread(
     }
   }
 
-  /** Clear per-session state before swapping to another thread. */
+  /** Clear per-session state before swapping to another thread — including
+   *  messages, so optimistic locals can never leak into the next session. */
   function resetForSession() {
+    messages.value = []
     sessionBusy.value = false
     statusDetail.value = null
     pendingQuestion.value = null
@@ -188,6 +193,10 @@ export function useSessionThread(
 
   // ── Live events ────────────────────────────────────────────────────────────
 
+  /** Bumped whenever the open thread's content grows — the page watches this
+   *  (instead of a deep watch over all messages) to drive auto-scroll. */
+  const contentVersion = ref(0)
+
   function applyEvent(event: OpencodeEvent) {
     const props = event.properties
     switch (event.type) {
@@ -198,6 +207,7 @@ export function useSessionThread(
         void replayStatus(sessionId.value)
         break
       case 'message.updated':
+        if (props.info?.sessionID === sessionId.value) contentVersion.value++
         upsertMessageInfo(props.info as ChatMessage['info'])
         break
       case 'message.removed':
@@ -206,6 +216,7 @@ export function useSessionThread(
         }
         break
       case 'message.part.updated':
+        if (props.part?.sessionID === sessionId.value) contentVersion.value++
         upsertPart(props.part as Part)
         break
       case 'message.part.removed':
@@ -251,12 +262,20 @@ export function useSessionThread(
     }
   }
 
-  /** Apply a message.updated event: refresh info in place, or append a new
-   *  message. A confirmed user message replaces the OLDEST optimistic local
-   *  one — later locals stay visible as the queue they are. */
+  /** Events nearly always target the newest message — check it first so the
+   *  per-token hot path stays O(1) instead of scanning the whole thread. */
+  function findMessage(id: string): ChatMessage | undefined {
+    const last = messages.value[messages.value.length - 1]
+    if (last?.info.id === id) return last
+    return messages.value.find((m) => m.info.id === id)
+  }
+
+  /** Apply a message.updated event: refresh info in place, or insert the new
+   *  message. A confirmed user message takes the SLOT of the oldest optimistic
+   *  local — replacing in place keeps queued sends in their real order. */
   function upsertMessageInfo(info: ChatMessage['info']) {
     if (info.sessionID !== sessionId.value) return
-    const existing = messages.value.find((m) => m.info.id === info.id)
+    const existing = findMessage(info.id)
     if (existing) {
       existing.info = info
       return
@@ -264,7 +283,11 @@ export function useSessionThread(
     const next = [...messages.value]
     if (info.role === 'user') {
       const localIndex = next.findIndex((m) => m.info.id.startsWith('local-'))
-      if (localIndex !== -1) next.splice(localIndex, 1)
+      if (localIndex !== -1) {
+        next.splice(localIndex, 1, { info, parts: [] })
+        messages.value = next
+        return
+      }
     }
     next.push({ info, parts: [] })
     messages.value = next
@@ -274,7 +297,7 @@ export function useSessionThread(
    *  events arrive in creation order, so append preserves part order. */
   function upsertPart(part: Part) {
     if (part.sessionID !== sessionId.value || !part.messageID) return
-    const message = messages.value.find((m) => m.info.id === part.messageID)
+    const message = findMessage(part.messageID)
     if (!message) return
     const index = message.parts.findIndex((p) => p.id === part.id)
     if (index === -1) message.parts.push(part)
@@ -283,16 +306,22 @@ export function useSessionThread(
 
   // ── Dispatch ───────────────────────────────────────────────────────────────
 
+  /** Monotonic suffix for optimistic ids — Date.now() collides on same-ms sends. */
+  let localSeq = 0
+
   /** Shared dispatch: optimistic user message, then a fire-and-forget call. The
    *  reply streams in through applyEvent; the session.idle event reconciles.
    *  Sending while busy is fine — the server queues it for the next turn. */
   async function dispatch(optimisticParts: ChatMessage['parts'], call: () => Promise<unknown>) {
+    const localId = `local-${++localSeq}`
     sending.value = true
     sessionBusy.value = true
-    messages.value = [...messages.value, { info: { id: `local-${Date.now()}`, role: 'user' }, parts: optimisticParts }]
+    messages.value = [...messages.value, { info: { id: localId, role: 'user' }, parts: optimisticParts }]
     try {
       await call()
     } catch {
+      // The send never reached the server — a stuck bubble would lie.
+      messages.value = messages.value.filter((m) => m.info.id !== localId)
       connectError.value = OPENCODE_CONNECT_ERROR
       sessionBusy.value = false
     } finally {
@@ -310,6 +339,26 @@ export function useSessionThread(
   }
 
   async function send(text: string, files: OutgoingFile[]) {
+    // A pending question consumes the next send — every entry point (text,
+    // attachments, any caller) goes through this one gate.
+    if (pendingQuestion.value) {
+      const [question] = pendingQuestion.value.questions
+      if (files.length > 0) {
+        toast.error('Answer the question first — attachments can come after.')
+        return
+      }
+      if (pendingQuestion.value.questions.length > 1 || question?.multiple) {
+        toast.error('Use the options above to answer.')
+        return
+      }
+      if (question?.custom === false) {
+        toast.error('Pick one of the options above.')
+        return
+      }
+      await answerQuestion(pendingQuestion.value.id, [[text]])
+      return
+    }
+
     const parts = [...filePartsFrom(files), ...(text ? [{ type: 'text', text }] : [])]
     // promptAsync returns as soon as the server accepts — streaming does the rest.
     await dispatch(parts, () =>
@@ -325,6 +374,12 @@ export function useSessionThread(
   }
 
   async function runCommand(name: string, args: string) {
+    // Commands execute immediately — unlike prompts they do not queue, so
+    // firing one mid-turn would interleave with the running work.
+    if (busy.value) {
+      toast.error('Wait for the current turn to finish before running a command.')
+      return
+    }
     await dispatch([{ type: 'text', text: `/${name}${args ? ` ${args}` : ''}` }], () =>
       client()!.session.command({
         path: { id: sessionId.value },
@@ -396,6 +451,7 @@ export function useSessionThread(
     minimapItems,
     activity,
     pendingQuestion,
+    contentVersion,
     loadMessages,
     replayStatus,
     resetForSession,

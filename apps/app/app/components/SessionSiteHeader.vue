@@ -42,20 +42,20 @@ const emit = defineEmits<{ 'toggle-side-panel': []; delete: []; 'new-session': [
       </div>
 
       <!-- Right: panel toggle -->
-      <div class="pointer-events-auto flex items-center gap-1.5">
-        <Button
-          variant="ghost"
-          size="icon"
-          :title="`${isSidePanelOpen ? 'Close' : 'Open'} panel (⌘I)`"
-          :class="cn(
-            'h-8 w-8 cursor-pointer transition-colors',
-            isSidePanelOpen ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
-          )"
-          @click="emit('toggle-side-panel')"
-        >
-          <PanelRight class="h-4 w-4" />
-        </Button>
-      </div>
+<!--      <div class="pointer-events-auto flex items-center gap-1.5">-->
+<!--        <Button-->
+<!--          variant="ghost"-->
+<!--          size="icon"-->
+<!--          :title="`${isSidePanelOpen ? 'Close' : 'Open'} panel (⌘I)`"-->
+<!--          :class="cn(-->
+<!--            'h-8 w-8 cursor-pointer transition-colors',-->
+<!--            isSidePanelOpen ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',-->
+<!--          )"-->
+<!--          @click="emit('toggle-side-panel')"-->
+<!--        >-->
+<!--          <PanelRight class="h-4 w-4" />-->
+<!--        </Button>-->
+<!--      </div>-->
     </div>
   </div>
 </template>
